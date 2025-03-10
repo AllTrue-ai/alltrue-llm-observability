@@ -17,11 +17,19 @@ dependencies = [
 requires-python = ">= 3.11"
 
 [project.urls]
-Repository = "https://github.com/AllTrue-ai/ai-security-customer-sdk"
+Repository = "https://github.com/AllTrue-ai/alltrue-customer-sdk"
 
 [project.optional-dependencies]
 full = [
     "alltrue-customer-core @ file:///${PROJECT_ROOT}/core",
+]
+testing = [
+    "fastapi~=0.111.1",
+    "mitmproxy~=11.0.2",
+]
+dev = [
+    "build",
+    "pre-commit",
 ]
 
 [tool.pdm.version]

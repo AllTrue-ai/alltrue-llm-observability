@@ -23,9 +23,7 @@ from tests import TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION, TESTS_DIR, init_
 @pytest.fixture(scope="module")
 def openai_test_ports():
     (api_process, api_port, proxy_process, proxy_port) = init_servers(
-        proxy_type="openai",
         target_url="https://api.openai.com",
-        mock_only=True,
     )
     # to wait a bit to ensure the system is up
     cert_file = os.path.join(

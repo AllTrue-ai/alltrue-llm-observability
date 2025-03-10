@@ -14,7 +14,7 @@ import os
 import pathlib
 import tomllib
 
-_CORE_HOME = os.path.join("..", "core", "src")
+_CORE_HOME = os.path.join("core", "src")
 
 
 def pdm_build_update_files(context, files):
