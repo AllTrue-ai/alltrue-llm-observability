@@ -3,18 +3,16 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project]
-name = "alltrue-customer"
+name = "alltrue-customer-sdk"
 readme = "README.md"
 dynamic = ["version"]
 authors = [
     {name = "AllTrue.ai INC", email = "ury@alltrue.ai"}
 ]
-description = "Client packages for AllTrue.ai API"
+description = "Client SDK for AllTrue.ai API"
 dependencies = [
-    "alltrue-customer-core @ file:///${PROJECT_ROOT}/core",
-    "alltrue-customer-sdk @ file:///${PROJECT_ROOT}/sdk",
-    "build~=1.2.2.post1",
-    "pre-commit~=3.7.1",
+    "openai~=1.63.0",
+    "wrapt~=1.17.2",
 ]
 requires-python = ">= 3.11"
 
@@ -22,18 +20,17 @@ requires-python = ">= 3.11"
 Repository = "https://github.com/AllTrue-ai/ai-security-customer-sdk"
 
 [project.optional-dependencies]
-testing = [
-    "google-generativeai~=0.8.4",
-    "openai~=1.63.0",
-    "pytest~=8.3.4",
-    "pytest-asyncio~=0.25.3",
-    "pytest_httpx~=0.35.0",
-    "nest-asyncio~=1.6.0",
+full = [
+    "alltrue-customer-core @ file:///${PROJECT_ROOT}/core",
 ]
 
 [tool.pdm.version]
 source = "file"
 path = "src/version.py"
+
+[tool.pdm.build]
+includes = ["src/alltrue"]
+custom-hook = "src/build.py"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -43,6 +40,6 @@ markers = [
     "skip_on_aws: marks tests to be skipped on AWS",
 ]
 pythonpath = [
-    "./core/src",
-    "./sdk/src",
+    "src",
+    "core/src",
 ]

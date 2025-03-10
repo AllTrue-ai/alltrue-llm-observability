@@ -16,11 +16,12 @@ from importlib import import_module
 from typing import Any, Callable, Coroutine
 
 from alltrue.control.chat import ProcessResult, RuleProcessor
-from alltrue.event.loop import ThreadExecutor
 from alltrue.utils.config import get_value
 from alltrue.utils.path import EndpointInfo
 from typing_extensions import Literal, NamedTuple
 from wrapt import ObjectProxy, wrap_function_wrapper
+
+from alltrue.event.loop import ThreadExecutor
 
 
 def unwrap(obj: object, attr: str):

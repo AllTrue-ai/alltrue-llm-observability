@@ -25,5 +25,16 @@ Repository = "https://github.com/AllTrue-ai/ai-security-customer-plane"
 source = "file"
 path = "../src/version.py"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/alltrue"]
+[tool.pdm.build]
+includes = ["src/alltrue"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-o log_cli=true -o log_cli=info -o consider_namespace_packages=true"
+asyncio_mode = "auto"
+markers = [
+    "skip_on_aws: marks tests to be skipped on AWS",
+]
+pythonpath = [
+    "src",
+]

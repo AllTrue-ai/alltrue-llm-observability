@@ -15,6 +15,10 @@ from typing import Any, cast
 import httpx
 from alltrue.control.chat import ProcessResult
 from alltrue.http import HttpStatus
+from openai import PermissionDeniedError
+from openai.types.chat import ChatCompletion
+from typing_extensions import override
+
 from alltrue.observers import (
     BaseObserver,
     EndpointRequest,
@@ -22,9 +26,6 @@ from alltrue.observers import (
     ObservedArgs,
     ObservedInstance,
 )
-from openai import PermissionDeniedError
-from openai.types.chat import ChatCompletion
-from typing_extensions import override
 
 
 class OpenAIObserver(BaseObserver):

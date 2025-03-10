@@ -17,10 +17,11 @@ from datetime import UTC, datetime
 from typing import Any, Callable, Coroutine, Generic, TypeVar
 
 from alltrue.control.chat import RuleProcessor
-from alltrue.event.loop import ThreadExecutor
-from alltrue.guardrails import _msg_key
 from alltrue.utils.config import get_value
 from pydantic import BaseModel
+
+from alltrue.event.loop import ThreadExecutor
+from alltrue.guardrails import _msg_key
 
 _REQ_PROCESSOR_CFG = "x-alltrue-llm-request-processor"
 
