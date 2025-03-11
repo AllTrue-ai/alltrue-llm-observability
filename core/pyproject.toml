@@ -25,6 +25,7 @@ Repository = "https://github.com/AllTrue-ai/ai-security-customer-sdk"
 testing = [
     "pytest_httpx~=0.35.0",
     "pytest-asyncio~=0.25.3",
+    "nest-asyncio~=1.6.0",
 ]
 
 [tool.pdm.version]
@@ -36,7 +37,12 @@ includes = ["src/alltrue"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-o log_cli=true -o log_cli=info -o consider_namespace_packages=true"
+addopts = [
+    "-o log_cli=true",
+    "-o log_cli=info",
+    "-o consider_namespace_packages=true",
+    "--import-mode=importlib",
+]
 asyncio_mode = "auto"
 markers = [
     "skip_on_aws: marks tests to be skipped on AWS",

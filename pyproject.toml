@@ -26,6 +26,7 @@ full = [
 testing = [
     "fastapi~=0.111.1",
     "mitmproxy~=11.0.2",
+    "nest-asyncio~=1.6.0",
 ]
 dev = [
     "build",
@@ -42,7 +43,12 @@ custom-hook = "src/build.py"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-o log_cli=true -o log_cli=info -o consider_namespace_packages=true"
+addopts = [
+    "-o log_cli=true",
+    "-o log_cli=info",
+    "-o consider_namespace_packages=true",
+    "--import-mode=importlib",
+]
 asyncio_mode = "auto"
 markers = [
     "skip_on_aws: marks tests to be skipped on AWS",

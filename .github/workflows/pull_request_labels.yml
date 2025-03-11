@@ -1,0 +1,18 @@
+name: Pull Request Labels
+on:
+  pull_request:
+    types: [ opened, labeled, unlabeled, synchronize ]
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: mheap/github-action-required-labels@v5
+        with:
+          mode: exactly
+          count: 1
+          labels: "low priority, medium priority, high priority"
+          add_comment: true
+          message: "Please add a priority label to this PR. See PR template for guidance on choosing a priority label."
