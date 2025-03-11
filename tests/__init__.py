@@ -55,7 +55,7 @@ def init_servers(
     control_process = Popen(
         [
             "uvicorn",
-            f"tests.mock.control:app",
+            f"tests.mocks.control:app",
             "--port",
             f"{control_port}",
         ],
@@ -83,7 +83,7 @@ def init_servers(
             os.path.join(PROJECT_DIR, "venv", "bin", "python"),
             os.path.join(PROJECT_DIR, "venv", "bin", "mitmdump"),
             "-s",
-            os.path.join(TESTS_DIR, "mock", "openai.py"),
+            os.path.join(TESTS_DIR, "mocks", "openai.py"),
             "--set",
             f"confdir={os.path.join(TESTS_DIR, '_mitmproxy', str(llm_port))}",
             "--set",

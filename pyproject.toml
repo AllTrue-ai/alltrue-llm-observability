@@ -20,9 +20,6 @@ requires-python = ">= 3.11"
 Repository = "https://github.com/AllTrue-ai/alltrue-customer-sdk"
 
 [project.optional-dependencies]
-full = [
-    "alltrue-customer-core @ file:///${PROJECT_ROOT}/core",
-]
 testing = [
     "fastapi~=0.111.1",
     "mitmproxy~=11.0.2",
@@ -30,6 +27,11 @@ testing = [
 dev = [
     "build",
     "pre-commit",
+]
+full = [
+    "alltrue-customer-core[testing] @ file:///${PROJECT_ROOT}/core",
+    "alltrue-customer-sdk[testing]",
+    "alltrue-customer-sdk[dev]",
 ]
 
 [tool.pdm.version]
@@ -42,7 +44,12 @@ custom-hook = "src/build.py"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-o log_cli=true -o log_cli=info -o consider_namespace_packages=true"
+addopts = [
+    "-o log_cli=true",
+    "-o log_cli=info",
+    "-o consider_namespace_packages=true",
+    "--import-mode=importlib",
+]
 asyncio_mode = "auto"
 markers = [
     "skip_on_aws: marks tests to be skipped on AWS",
@@ -51,3 +58,14 @@ pythonpath = [
     "src",
     "core/src",
 ]
+
+[tool.mypy]
+mypy_path = "src:core/src"
+namespace_packages = true
+explicit_package_bases = true
+exclude = "core/tests/__init__.py"
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_missing_imports = true
+follow_imports_for_stubs = true

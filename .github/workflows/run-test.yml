@@ -1,0 +1,59 @@
+name: run tests on aws machine
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore: # Ignore changes to markdown files
+      - '**.md'
+      - '**.service'
+      - '**.timer'
+      - '**.sh'
+      - 'docs/**'
+      - 'github_runners_service_files/**'
+# Cancel previous runs of this workflow if a new run is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  aws-non-concurrent-tests-job:
+    timeout-minutes: 35
+    runs-on:
+      labels: [self-hosted, linux]
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Check for required labels
+        if: ${{ github.event_name == 'pull_request'}}
+        uses: mheap/github-action-required-labels@v5
+        with:
+          mode: exactly
+          count: 1
+          labels: "run_aws_tests"
+          message: "If you want to run the self-hosted non concurrent aws test, add the `run_aws_tests` label to this PR. Click `Details` -> `Re-run jobs` to rerun this particular job."
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Create .env file
+        run: |
+          echo "ALLTRUE_API_URL=https://api.alltrue-be.com" > .env
+          echo "ALLTRUE_API_KEY=${{ secrets.API_KEY }}" >> .env
+          echo "ALLTRUE_CUSTOMER_ID=${{ secrets.CUSTOMER_ID }}" >> .env
+          echo "ALLTRUE_ENDPOINT_IDENTIFIER=${{ secrets.ENDPOINTER_IDENTIFIER }}" >> .env
+          echo "CONFIG_LLM_API_PROVIDER=any" >> .env
+      - name: Install dependencies
+        run: |
+          eval $(ssh-agent -s)
+          ssh-add ~/.ssh/test-machine-ssh
+          python3.11 -m pip install --upgrade pip
+          python3.11 -m venv venv
+          source venv/bin/activate
+          pip install -e.[full]
+      - name: Run pre-commit hooks
+        run: |
+          source venv/bin/activate
+          pre-commit run --all-files
+      - name: Run tests
+        run: |
+          source venv/bin/activate
+          pytest -m "not skip_on_aws" --maxfail=5 --durations=10
