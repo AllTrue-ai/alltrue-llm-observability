@@ -20,9 +20,6 @@ requires-python = ">= 3.11"
 Repository = "https://github.com/AllTrue-ai/alltrue-customer-sdk"
 
 [project.optional-dependencies]
-full = [
-    "alltrue-customer-core @ file:///${PROJECT_ROOT}/core",
-]
 testing = [
     "fastapi~=0.111.1",
     "mitmproxy~=11.0.2",
@@ -31,6 +28,11 @@ testing = [
 dev = [
     "build",
     "pre-commit",
+]
+full = [
+    "alltrue-customer-core @ file:///${PROJECT_ROOT}/core",
+    "alltrue-customer-sdk[testing]",
+    "alltrue-customer-sdk[dev]",
 ]
 
 [tool.pdm.version]
