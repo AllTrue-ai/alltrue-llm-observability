@@ -36,7 +36,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Create .env file
         run: |
-          echo "ALLTRUE_API_URL=https://api.alltrue-be.com" >> .env
+          echo "ALLTRUE_API_URL=https://api.alltrue-be.com" > .env
           echo "ALLTRUE_API_KEY=${{ secrets.API_KEY }}" >> .env
           echo "ALLTRUE_CUSTOMER_ID=${{ secrets.CUSTOMER_ID }}" >> .env
           echo "ALLTRUE_ENDPOINT_IDENTIFIER=${{ secrets.ENDPOINTER_IDENTIFIER }}" >> .env
