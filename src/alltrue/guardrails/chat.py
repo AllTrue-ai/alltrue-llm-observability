@@ -166,7 +166,7 @@ class ChatGuardrails:
             endpoint_identifier=self._endpoint_identifier,
         )
         if processed_result is not None:
-            if processed_result.status_code > 400:
+            if processed_result.status_code >= 400:
                 raise GuardrailsException(
                     message=processed_result.message or "Invalid messages"
                 )
