@@ -111,7 +111,7 @@ class ChatGuardian:
         logging_level: int | str = logging.INFO,
         _api_provider: str = "any",
     ):
-        self._log = logging.getLogger("alltrue.chat.processor")
+        self._log = logging.getLogger(__name__)
         self._log.setLevel(logging_level)
 
         self._processor_cfg = (
@@ -267,7 +267,7 @@ class ChatGuardrails:
                 for choice in json.loads(completion).get("choices", [])
             ],
         )
-        self._log = logging.getLogger("alltrue.chat.guardrails")
+        self._log = logging.getLogger(__name__)
         self._rid_cache = dict()
         self._loop = ThreadExecutor()
 
