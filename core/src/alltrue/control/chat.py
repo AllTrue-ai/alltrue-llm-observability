@@ -83,7 +83,7 @@ class RuleProcessor:
             llm_api_provider=llm_api_provider,
         )
         self._client = CachableHttpClient(
-            base_url=self.config.api_url,
+            base_url=self.config.api_url,  # type: ignore
             _keep_alive=_connection_keep_alive,
         )
         self._client.register_cachable(

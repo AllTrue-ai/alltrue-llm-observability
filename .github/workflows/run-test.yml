@@ -56,4 +56,4 @@ jobs:
       - name: Run tests
         run: |
           source venv/bin/activate
-          pytest -s ./tests -m "not skip_on_aws" --maxfail=5 --durations=10
+          pytest -m "not skip_on_aws" --maxfail=5 --durations=10

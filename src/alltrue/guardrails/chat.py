@@ -138,7 +138,9 @@ class ChatGuardrails:
         )
         if processed_result is not None:
             if processed_result.status_code >= 400:
-                raise GuardrailsException(message=processed_result.message)
+                raise GuardrailsException(
+                    message=processed_result.message or "Invalid messages"
+                )
         return (
             self._prompt_hooks.after(processed_result.new_body)
             if processed_result
@@ -165,7 +167,9 @@ class ChatGuardrails:
         )
         if processed_result is not None:
             if processed_result.status_code > 400:
-                raise GuardrailsException(message=processed_result.message)
+                raise GuardrailsException(
+                    message=processed_result.message or "Invalid messages"
+                )
         return (
             self._completion_hooks.after(processed_result.new_body)
             if processed_result

@@ -59,3 +59,14 @@ pythonpath = [
     "src",
     "core/src",
 ]
+
+[tool.mypy]
+mypy_path = "src:core/src"
+namespace_packages = true
+explicit_package_bases = true
+exclude = "core/tests/__init__.py"
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_missing_imports = true
+follow_imports_for_stubs = true
