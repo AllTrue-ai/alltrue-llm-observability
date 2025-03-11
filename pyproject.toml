@@ -23,14 +23,13 @@ Repository = "https://github.com/AllTrue-ai/alltrue-customer-sdk"
 testing = [
     "fastapi~=0.111.1",
     "mitmproxy~=11.0.2",
-    "nest-asyncio~=1.6.0",
 ]
 dev = [
     "build",
     "pre-commit",
 ]
 full = [
-    "alltrue-customer-core @ file:///${PROJECT_ROOT}/core",
+    "alltrue-customer-core[testing] @ file:///${PROJECT_ROOT}/core",
     "alltrue-customer-sdk[testing]",
     "alltrue-customer-sdk[dev]",
 ]
