@@ -61,7 +61,7 @@ def _get_http_transport_config(
 class CachableEndpoint(NamedTuple):
     path: str
     methods: list[HttpMethod]
-    key_generator: Callable[[Request, bytes], bytes]
+    key_generator: Callable[[Request, bytes], bytes] = lambda r, b: b
 
 
 class PathBasedCacheController(hishel.Controller):

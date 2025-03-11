@@ -17,7 +17,7 @@ from alltrue.http import HttpStatus
 from alltrue.http.cache import CachableEndpoint, CachableHttpClient
 from alltrue.utils.config import AlltrueConfig
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("alltrue.token")
 
 _TOKEN_ENDPOINT = "/v1/auth/issue-jwt-token"
 

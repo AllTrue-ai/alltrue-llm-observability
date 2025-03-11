@@ -27,7 +27,7 @@ from ._internal.token import TokenRetriever
 
 MAX_TOKEN_REFRESH_RETRIES = 5
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("alltrue.rule")
 
 
 def _parse_url(

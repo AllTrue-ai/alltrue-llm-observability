@@ -1,4 +1,3 @@
-#
 #  Copyright 2023-2024 AllTrue.ai Inc
 #  All Rights Reserved.
 #
@@ -10,8 +9,6 @@
 #  Dissemination of this information or reproduction of this material
 #  is strictly forbidden unless prior written permission is obtained
 #  from AllTrue.ai Incorporated.
-#
-
 import pytest
 from alltrue.utils.path import EndpointInfo
 
