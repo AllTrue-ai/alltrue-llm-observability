@@ -42,6 +42,7 @@ class MockLlmOpenAI:
         )
         if keyword:
             logger.info(f"    [MOCK_OPENAI] asking about {keyword}")
+            logger.info(f"    [MOCK_OPENAI] {flow.request.json()}")
             flow.response = http.Response.make(
                 status_code=200,
                 headers={
@@ -57,13 +58,18 @@ class MockLlmOpenAI:
                         "model": "gpt-3.5-turbo-0125",
                         "choices": [
                             {
-                                "index": 0,
+                                "index": i,
                                 "message": {
                                     "role": "assistant",
-                                    "content": MOCK_REPLIES[keyword](flow.request.text),
+                                    "content": MOCK_REPLIES[keyword](
+                                        msg.get("content", "")
+                                    ),
                                 },
                                 "finish_reason": "stop",
                             }
+                            for i, msg in enumerate(
+                                flow.request.json().get("messages", [])
+                            )
                         ],
                         "usage": {
                             "prompt_tokens": 15,

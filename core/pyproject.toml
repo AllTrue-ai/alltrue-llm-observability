@@ -3,12 +3,12 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project]
-name = "alltrue-customer-core"
+name = "alltrue-llm-observability-core"
 dynamic = ["version"]
 authors = [
     {name = "AllTrue.ai INC", email = "ury@alltrue.ai"}
 ]
-description = "Client Library for AllTrue.ai API"
+description = "LLM Observaility Core Library for AllTrue.ai API"
 dependencies = [
     "hishel~=0.1.1",
     "httpx~=0.28.0",

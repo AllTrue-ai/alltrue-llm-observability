@@ -1,56 +1,28 @@
-# alltrue-customer-sdk
+# Alltrue LLM Observability SDK
 
-Two types supported.
+## Build
 
-## Observers
-
- LLM client specific observers to watch and populate collected info in the background.
-
-### Example Usages
- - Observing OpenAI client
-```python
-from alltrue.observers.openai import OpenAIObserver
-from openai import OpenAI
-
-# init observer
-observer = OpenAIObserver(
-    alltrue_api_url="https://api.alltrue-be.com", # or via envar ALLTRUE_API_URL
-    alltrue_api_key="<API_KEY>",                  # or via envar ALLTRUE_API_KEY
-    alltrue_customer_id="<CUSTOMER_ID>",          # or via envar ALLTRUE_CUSTOMER_ID
-    alltrue_endpoint_identifier="<IDENTIFIER>",   # or via envar ALLTRUE_ENDPOINT_IDENTIFIER
-    blocking=False,                               # set to True to block on observed abnormalities (will be call latency overhead)
-    logging_level="WARNING",
-)
-# register observer to client behaviors, since here, client communication will be watched and populated
-observer.register()
-
-completion = OpenAI().chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[
-        {
-            "role": "user",
-            "content": "What day is today?",
-        }
-    ],
-)
-
-# finishing observation
-observer.unregister()
+```shell
+pip install -e.[full]
+pytest
+python -m build --wheel
 ```
 
-## Guardrails
+## Usages
+
+### Guardrails
 
 Guard or observe the input/output messages
 
-### Example Usages
 - Generic message guardrails
+
 ```python
-from alltrue.guardrails.chat import ChatGuardrailsLite, GuardrailsException
+from alltrue.guardrails.chat import ChatGuardrails, GuardrailsException
 import httpx
 import sys
 
 # init guardrails
-guardrails = ChatGuardrailsLite(
+guardrails = ChatGuardrails(
     alltrue_api_url="https://api.alltrue-be.com",  # or via envar ALLTRUE_API_URL
     alltrue_api_key="<API_KEY>",                   # or via envar ALLTRUE_API_KEY
     alltrue_customer_id="<CUSTOMER_ID>",           # or via envar ALLTRUE_CUSTOMER_ID
@@ -98,12 +70,13 @@ except GuardrailsException:
     sys.exit(1)
 ```
 - Generic message observation
+
 ```python
-from alltrue.guardrails.chat import ChatGuardrailsLite, GuardrailsException
+from alltrue.guardrails.chat import ChatGuardrails
 import httpx
 
 # init guardrails
-guardrails = ChatGuardrailsLite(
+guardrails = ChatGuardrails(
     alltrue_api_url="https://api.alltrue-be.com",  # or via envar ALLTRUE_API_URL
     alltrue_api_key="<API_KEY>",                   # or via envar ALLTRUE_API_KEY
     alltrue_customer_id="<CUSTOMER_ID>",           # or via envar ALLTRUE_CUSTOMER_ID
@@ -144,4 +117,39 @@ guardrails.observe_output(
     messages,
     responses,
 )
+```
+
+### Observers
+
+ LLM client specific observers to watch and populate collected info in the background.
+
+ - Observing OpenAI client
+```python
+from alltrue.observers.openai import OpenAIObserver
+from openai import OpenAI
+
+# init observer
+observer = OpenAIObserver(
+    alltrue_api_url="https://api.alltrue-be.com", # or via envar ALLTRUE_API_URL
+    alltrue_api_key="<API_KEY>",                  # or via envar ALLTRUE_API_KEY
+    alltrue_customer_id="<CUSTOMER_ID>",          # or via envar ALLTRUE_CUSTOMER_ID
+    alltrue_endpoint_identifier="<IDENTIFIER>",   # or via envar ALLTRUE_ENDPOINT_IDENTIFIER
+    blocking=False,                               # set to True to block on observed abnormalities (will be call latency overhead)
+    logging_level="WARNING",
+)
+# register observer to client behaviors, since here, client communication will be watched and populated
+observer.register()
+
+completion = OpenAI().chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {
+            "role": "user",
+            "content": "What day is today?",
+        }
+    ],
+)
+
+# finishing observation
+observer.unregister()
 ```
