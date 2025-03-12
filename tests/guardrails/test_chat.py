@@ -18,7 +18,7 @@ import pytest
 from openai import AsyncOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
 
-from alltrue.guardrails.chat import ChatGuardrails, ChatGuardrailsLite
+from alltrue.guardrails.chat import ChatGuardian, ChatGuardrails
 from tests import TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION, TESTS_DIR, init_servers
 
 
@@ -43,10 +43,10 @@ def openai_test_ports():
 
 
 @pytest.fixture(scope="module", autouse=True)
-def guardrails(openai_test_ports, test_endpoint_identifier):
+def guardian(openai_test_ports, test_endpoint_identifier):
     (api_port, proxy_port) = openai_test_ports
     os.environ["CONFIG_HTTP_KEEPALIVE"] = "none"
-    _guardrails = ChatGuardrails(
+    _guardrails = ChatGuardian(
         alltrue_api_url=f"http://localhost:{api_port}",
         alltrue_api_key="dummy-app-key",
         alltrue_endpoint_identifier=test_endpoint_identifier,
@@ -57,10 +57,10 @@ def guardrails(openai_test_ports, test_endpoint_identifier):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def guardrails_lite(openai_test_ports, test_endpoint_identifier):
+def guardrails(openai_test_ports, test_endpoint_identifier):
     (api_port, proxy_port) = openai_test_ports
     os.environ["CONFIG_HTTP_KEEPALIVE"] = "none"
-    _guardrails = ChatGuardrailsLite(
+    _guardrails = ChatGuardrails(
         alltrue_api_url=f"http://localhost:{api_port}",
         alltrue_api_key="dummy-app-key",
         alltrue_endpoint_identifier=test_endpoint_identifier,
@@ -83,12 +83,12 @@ def openai_api_key():
         AsyncOpenAI,
     ],
 )
-async def test_guardrails(
+async def test_processor(
     openai_cls,
     openai_api_key,
     openai_test_ports: tuple[int, int],
     test_endpoint_identifier,
-    guardrails,
+    guardian,
 ):
     (api_port, proxy_port) = openai_test_ports
     client = openai_cls(
@@ -97,7 +97,7 @@ async def test_guardrails(
     )
 
     # register hooks for serialization/deserialization when default json serialization/deserialization is not suitable
-    guardrails.register_completion_hooks(
+    guardian.register_completion_hooks(
         before=lambda o: o.model_dump_json(),
         after=lambda o: ChatCompletion.model_validate_json(o),
     )
@@ -113,7 +113,7 @@ async def test_guardrails(
     }
 
     # call guard_prompt to process the prompt
-    guarded = await guardrails.guard_prompt(api_request)
+    guarded = await guardian.guard_prompt(api_request)
 
     # use the guarded prompt to call client api
     api_response = client.chat.completions.create(
@@ -129,17 +129,17 @@ async def test_guardrails(
 
 
 @pytest.mark.skip_on_aws
-async def test_guardrails_lite(
+async def test_guardrails(
     openai_api_key,
     openai_test_ports: tuple[int, int],
     test_endpoint_identifier,
-    guardrails_lite,
+    guardrails,
 ):
     (api_port, proxy_port) = openai_test_ports
 
     messages = [f"return the string ' modify  {TEST_PROMPT_CANARY} '"]
     # call guard_input to process the prompt messages
-    guarded_input = await guardrails_lite.guard_input(messages)
+    guarded_input = await guardrails.guard_input(messages)
 
     # use the guarded prompt messages to call OpenAI API
     api_response = await httpx.AsyncClient(
@@ -148,44 +148,35 @@ async def test_guardrails_lite(
         url=f"/chat/completions",
         json={
             "model": "gpt-3.5-turbo",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": msg,
-                }
-                for msg in guarded_input
-            ],
+            "messages": [msg.model_dump() for msg in guarded_input],
         },
     )
 
     # call guard_output to process the completion messages
-    guarded_output = await guardrails_lite.guard_output(
+    guarded_output = await guardrails.guard_output(
         messages,
-        [
-            c.get("message", {}).get("content", "")
-            for c in api_response.json().get("choices", [])
-        ],
+        [c.get("message", {}) for c in api_response.json().get("choices", [])],
     )
 
-    assert TEST_PROMPT_CANARY not in guarded_output[0]
-    assert TEST_PROMPT_SUBSTITUTION in guarded_output[0]
-    assert test_endpoint_identifier in guarded_output[0]
+    assert TEST_PROMPT_CANARY not in guarded_output[0].content
+    assert TEST_PROMPT_SUBSTITUTION in guarded_output[0].content
+    assert test_endpoint_identifier in guarded_output[0].content
     await asyncio.sleep(0.5)
 
 
 @pytest.mark.skip_on_aws
-async def test_guardrails_lite_observing(
+async def test_guardrails_observing_only(
     openai_api_key,
     openai_test_ports: tuple[int, int],
     test_endpoint_identifier,
-    guardrails_lite,
+    guardrails,
 ):
     messages = [f"reject '{TEST_PROMPT_CANARY}"]
     # call guard_input to observe input only, no exception should be thrown
-    guardrails_lite.observe_input(messages)
+    guardrails.observe_input(messages)
 
     # call observe_output to observe output only, no exception should be thrown
-    guardrails_lite.observe_output(
+    guardrails.observe_output(
         messages,
         [f"reject '{TEST_PROMPT_CANARY}'"],
     )
