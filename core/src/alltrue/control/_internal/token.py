@@ -60,7 +60,7 @@ class TokenRetriever:
             },
             extensions={"cache_disabled": True} if refresh else {"force_cache": True},
         )
-        if response.status_code == HttpStatus.OK:
+        if HttpStatus.is_success(response.status_code):
             payload = response.json()
             if "access_token" in payload:
                 return payload["access_token"]

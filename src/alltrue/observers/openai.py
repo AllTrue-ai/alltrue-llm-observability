@@ -80,9 +80,12 @@ class OpenAIObserver(BaseObserver):
         instance: ObservedInstance,
         call_args: ObservedArgs,
     ) -> ChatCompletion | None:
-        if response.status_code == HttpStatus.OK and len(response.new_body or "") > 0:
+        if (
+            HttpStatus.is_success(response.status_code)
+            and len(response.new_body or "") > 0
+        ):
             return ChatCompletion.model_validate(json.loads(response.new_body))
-        elif response.status_code == HttpStatus.FORBIDDEN:
+        elif HttpStatus.is_unauthorized(response.status_code):
             raise PermissionDeniedError(
                 message=response.message,
                 response=httpx.Response(
@@ -138,11 +141,11 @@ class OpenAIObserver(BaseObserver):
         call_args: ObservedArgs,
     ) -> ObservedArgs:
         (args, kwargs) = call_args
-        if result.status_code == HttpStatus.OK and len(result.new_body or "") > 0:
+        if HttpStatus.is_success(result.status_code) and len(result.new_body or "") > 0:
             payload = json.loads(result.new_body)
             kwargs["model"] = payload.get("model", kwargs.get("model", None))
             kwargs["messages"] = payload.get("messages", kwargs.get("messages", []))
-        elif result.status_code == HttpStatus.FORBIDDEN:
+        elif HttpStatus.is_unauthorized(result.status_code):
             raise PermissionDeniedError(
                 message=result.message,
                 response=httpx.Response(

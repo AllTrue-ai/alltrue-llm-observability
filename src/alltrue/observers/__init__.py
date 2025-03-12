@@ -19,6 +19,7 @@ import uuid
 from importlib import import_module
 from typing import Any, Callable, Coroutine
 
+from alltrue.control.batch import BatchRuleProcessor
 from alltrue.control.chat import ProcessResult, RuleProcessor
 from alltrue.utils.config import get_value
 from alltrue.utils.path import EndpointInfo
@@ -95,6 +96,8 @@ class BaseObserver:
         llm_api_path: str = "",
         logging_level: int | str = logging.INFO,
         blocking: bool = False,
+        batch_size: int = 5,
+        queue_time: float = 5.0,
     ):
         """
         :param alltrue_api_url: Alltrue API URL, loading from config `CONFIG_API_URL` if not specified.
@@ -110,13 +113,24 @@ class BaseObserver:
         self._log = logging.getLogger("alltrue.observer")
         self._log.setLevel(logging_level)
 
-        self._rule_processor = RuleProcessor(
-            llm_api_provider=llm_api_provider,
-            customer_id=alltrue_customer_id,
-            api_url=alltrue_api_url,
-            api_key=alltrue_api_key,
-            _connection_keep_alive="none",
-        )
+        if blocking:
+            self._rule_processor = RuleProcessor(
+                llm_api_provider=llm_api_provider,
+                customer_id=alltrue_customer_id,
+                api_url=alltrue_api_url,
+                api_key=alltrue_api_key,
+                _connection_keep_alive="none",
+            )
+        else:
+            self._rule_processor = BatchRuleProcessor(
+                llm_api_provider=llm_api_provider,
+                customer_id=alltrue_customer_id,
+                api_url=alltrue_api_url,
+                api_key=alltrue_api_key,
+                _connection_keep_alive="none",
+                queue_time=queue_time,
+                batch_size=batch_size,
+            )
         if not alltrue_endpoint_identifier:
             alltrue_endpoint_identifier = get_value("endpoint_identifier")
         self._default_endpoint_info = EndpointInfo(
@@ -127,8 +141,8 @@ class BaseObserver:
         )
         self._llm_api_url = self._rule_processor.config.api_url
         self._observables: list[Observable] = []
-        self._loop = ThreadExecutor()
         self._blocking = blocking
+        self._executor = None
 
     def _resolve_endpoint_info(self, **kwargs) -> EndpointInfo:
         """
@@ -188,11 +202,8 @@ class BaseObserver:
             return await request_process
         else:
             self._log.info(f"[OBSERVER] {rid}: observing {rtype} in background...")
-            self._loop.ensure_future(
+            self._executor.ensure_future(  # type: ignore
                 request_process,
-                call_back=lambda task: self._log.info(
-                    f"[OBSERVER] {rid}: {rtype} background execution {task.exception() or ('cancelled' if task.cancelled() else 'completed')}]"
-                ),
             )
             return None
 
@@ -220,7 +231,7 @@ class BaseObserver:
                     llm_api_provider=request.endpoint.proxy_type,
                 ),
             )
-            if request_process_result:
+            if self._blocking and request_process_result:
                 (args, kwargs) = self._after_input_process(
                     request_process_result,
                     request,
@@ -250,7 +261,7 @@ class BaseObserver:
                     llm_api_provider=request.endpoint.proxy_type,
                 ),
             )
-            if response_process_result:
+            if self._blocking and response_process_result:
                 return (
                     self._after_output_process(
                         response_process_result, request, instance, call_args
@@ -270,6 +281,10 @@ class BaseObserver:
 
         return wrap_sync_action
 
+    @property
+    def is_blocking(self):
+        return self._blocking
+
     def register(self):
         """
         Register this observer to all observable operations.
@@ -282,6 +297,12 @@ class BaseObserver:
                 if observable.is_async
                 else self._patch_sync_action(),
             )
+        try:
+            if asyncio.get_running_loop() is not None:
+                self._executor = asyncio
+        except RuntimeError:
+            self._log.info("[OBSERVER] No running loop.")
+            self._executor = ThreadExecutor()
 
     def unregister(self):
         """
@@ -292,3 +313,4 @@ class BaseObserver:
                 f"{observable.module_name}.{observable.class_name}",
                 observable.func_name,
             )
+        self._executor.run(self._rule_processor.close(timeout=1))
