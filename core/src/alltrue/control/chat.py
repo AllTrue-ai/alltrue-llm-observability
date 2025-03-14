@@ -110,12 +110,20 @@ class RuleProcessor:
         self._token_manager = TokenRetriever(config=self.config, client=self._client)
 
     async def _call_control(
-        self, endpoint: str, body: dict, cache: bool = False
+        self,
+        endpoint: str,
+        method: HttpMethod = "POST",
+        body: dict | None = None,
+        timeout: float | None = None,
+        cache: bool = False,
     ) -> httpx.Response:
         """
         Call the Control Plane API , retrying if we get a 403 Forbidden in case token has expired
         :param endpoint: The chat api endpoint
+        :param method: The HTTP method to use
         :param body: The original body of the request
+        :param timeout: timeout setting per request level if given
+        :param cache: Should cache the response when sufficient
         :return: HTTPX reply
         """
         token_error_count = 0
@@ -125,15 +133,17 @@ class RuleProcessor:
             )
             if token:
                 logger.debug(
-                    f"[CPA] Request to control\n endpoint: {endpoint}\n token: {token}\n body: {body}\n"
+                    f"[CPA] {method} to control\n endpoint: {endpoint}\n token: {token}\n body: {body}\n"
                 )
-                reply = await self._client.post(
+                reply = await self._client.request(
+                    method=method,
                     url=f"/v1/llm-firewall/chat/{endpoint.removeprefix('/')}",
                     json=body,
                     headers={
                         "content-type": "application/json",
                         "Authorization": f"Bearer {token}",
                     },
+                    timeout=timeout,
                     extensions={"force_cache": True}
                     if cache
                     else {"cache_disabled": True},

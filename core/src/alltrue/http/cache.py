@@ -42,6 +42,7 @@ def _get_http_timeout_config() -> httpx.Timeout:
 def _get_http_transport_config(
     verify: bool = True,
     keep_alive: str | None = None,
+    retries: int = 0,
 ) -> httpx.AsyncHTTPTransport | None:
     keepalive_value = (
         keep_alive
@@ -56,6 +57,7 @@ def _get_http_transport_config(
         return httpx.AsyncHTTPTransport(
             verify=verify,
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=0),
+            retries=retries,
         )
     else:
         # use default keep alive settings

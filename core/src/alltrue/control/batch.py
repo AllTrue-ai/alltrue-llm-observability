@@ -22,16 +22,19 @@ from typing import Any, Callable, Coroutine, NamedTuple
 
 import httpx
 from alltrue.control.chat import RuleProcessor
-from alltrue.http import HttpStatus
+from alltrue.http import HttpMethod, HttpStatus
 from async_batcher.batcher import AsyncBatcher
 from typing_extensions import override
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_BATCH_TIMEOUT = 3.0
+
 
 class _Request(NamedTuple):
     endpoint: str
-    body: dict
+    method: HttpMethod
+    body: dict | None
 
 
 class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
@@ -42,28 +45,49 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
     def __init__(
         self,
         *,
-        func: Callable[[str, dict, bool], Coroutine[Any, Any, httpx.Response]],
+        func: Callable[
+            [str, HttpMethod, dict | None, float | None, bool],
+            Coroutine[Any, Any, httpx.Response],
+        ],
         **kwargs,
     ):
         super().__init__(
             **kwargs,
         )
         self._func = func
-        self._key_func = lambda r: r.endpoint
+        self._key_func = lambda r: f"[{r.method}]{r.endpoint}"
 
     async def process_batch(self, batch: list[_Request]) -> list[httpx.Response] | None:
         logger.info(f"[BAT] Handling {len(batch)} requests in queue...")
         calls = []
-        for endpoint, requests in itertools.groupby(
+        for key, requests in itertools.groupby(
             sorted(batch, key=self._key_func), key=self._key_func
         ):
+            parsed_key = re.search(r"\[(.*)\](.*)", key)
+            if not parsed_key:
+                continue
+            (method, endpoint) = parsed_key.groups()
             batch_endpoint = f"/batch/{endpoint.removeprefix('/')}"
-            batch_body = [request.body for request in requests]
+            batch_body = [
+                request.body
+                for request in filter(lambda r: r.body is not None, requests)
+            ]
             logger.info(
                 f"[BAT] Calling {batch_endpoint} with {len(batch_body)}/{len(batch)} of overall requests"
             )
-            calls.append(self._func(batch_endpoint, {"requests": batch_body}, False))
-        responses = await asyncio.gather(*calls, return_exceptions=True)
+            calls.append(
+                self._func(
+                    batch_endpoint,
+                    method,  # type: ignore
+                    {"requests": batch_body} if len(batch_body) > 0 else None,
+                    _DEFAULT_BATCH_TIMEOUT,
+                    False,  # no cache for batch
+                )
+            )
+        responses = await asyncio.wait_for(
+            asyncio.gather(*calls, return_exceptions=True),
+            timeout=_DEFAULT_BATCH_TIMEOUT,
+        )
         for response in responses:
             match response:
                 case exc if isinstance(exc, Exception):
@@ -89,7 +113,7 @@ class BatchRuleProcessor(RuleProcessor):
         customer_id: str | None = None,
         llm_api_provider: str | None = None,
         _connection_keep_alive: str | None = None,
-        batch_size: int = 10,
+        batch_size: int = 5,
         queue_time: float = 5.0,
         **kwargs,
     ):
@@ -103,20 +127,28 @@ class BatchRuleProcessor(RuleProcessor):
         )
         self._batcher = _BatchCaller(
             func=super()._call_control,
+            concurrency=3,
             max_batch_size=batch_size,
             max_queue_time=queue_time,
         )
 
     @override
     async def _call_control(
-        self, endpoint: str, body: dict, cache: bool = False
+        self,
+        endpoint: str,
+        method: HttpMethod = "POST",
+        body: dict | None = None,
+        timeout: float | None = None,
+        cache: bool = False,
     ) -> httpx.Response:
         matched = re.search(r"/process-(input|output)/.*", endpoint)
         endpoint_type = matched.group(1) if matched else None
         if endpoint_type is not None:
             logger.info(f"[BAT] Batching {endpoint} request...")
             t = asyncio.ensure_future(
-                self._batcher.process(_Request(endpoint=endpoint, body=body))
+                self._batcher.process(
+                    _Request(endpoint=endpoint, method=method, body=body)
+                )
             )
             payload_type = "request" if endpoint_type == "input" else "response"
             return httpx.Response(
@@ -126,13 +158,21 @@ class BatchRuleProcessor(RuleProcessor):
                         "status_code": HttpStatus.OK,
                         f"processed_{endpoint_type}": json.loads(
                             body.get(f"original_{payload_type}_body", "{}")
+                            if body
+                            else "{}"
                         ),
                         "message": f"Batched as {t}",
                     }
                 ),
             )
         else:
-            return await super()._call_control(endpoint, body, cache)
+            return await super()._call_control(
+                endpoint=endpoint,
+                method=method,
+                body=body,
+                timeout=timeout,
+                cache=cache,
+            )
 
     @property
     @override

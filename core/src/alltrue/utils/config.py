@@ -37,7 +37,9 @@ def get_value(name: str, prefix: str = "ALLTRUE"):
 
 
 def _get_api_url():
-    return get_or_default(name="api_url", default="https://prod.alltrue.com")
+    return get_or_default(
+        name="api_url", prefix="ALLTRUE", default="https://prod.alltrue.com"
+    )
 
 
 def _get_customer_id():
