@@ -22,7 +22,6 @@ classifiers = [
 requires-python = ">= 3.11"
 license = {text = "Apache-2.0"}
 
-
 [project.urls]
 Repository = "https://github.com/AllTrue-ai/alltrue-llm-observability"
 

@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import uuid
+from abc import ABC
 from datetime import UTC, datetime
 from typing import Any, Callable, TypeVar
 
@@ -28,9 +29,6 @@ from pydantic import BaseModel, ConfigDict
 
 from alltrue.event.loop import ThreadExecutor
 from alltrue.guardrails import _msg_key
-
-_REQ_PROCESSOR_CFG = "x-alltrue-llm-request-processor"
-
 
 I = TypeVar("I")
 O = TypeVar("O")
@@ -71,8 +69,9 @@ class GuardableMessage(BaseModel):
         return [cls.parse(msg) for msg in contents]
 
     @classmethod
-    def hash(cls, contents: list[Any]) -> str:
-        return _msg_key([msg.content for msg in cls.parse_all(contents)])
+    def hash(cls, contents: list[Any]) -> tuple[str, list["GuardableMessage"]]:
+        parsed = cls.parse_all(contents)
+        return _msg_key([msg.content for msg in parsed]), parsed
 
 
 Guardable = GuardableMessage | dict[str, str] | str
@@ -83,7 +82,7 @@ class _GuardTrailHooks(BaseModel):
     after: Callable[[str], I] = json.loads
 
 
-class ChatGuardian:
+class ChatGuardian(ABC):
     def __init__(
         self,
         alltrue_api_url: str | None = None,
@@ -99,7 +98,7 @@ class ChatGuardian:
         self._endpoint_identifier = alltrue_endpoint_identifier or get_value(
             name="endpoint_identifier"
         )
-        self._rule_processor = RuleProcessor(
+        self._guard_processor = RuleProcessor(
             llm_api_provider=_api_provider,
             customer_id=alltrue_customer_id,
             api_url=alltrue_api_url,
@@ -107,6 +106,7 @@ class ChatGuardian:
         )
         self._prompt_hooks = _GuardTrailHooks()
         self._completion_hooks = _GuardTrailHooks()
+        self._rid_cache: dict[str, str] = dict()
 
     def register_prompt_hooks(
         self, before: Callable[[I], str], after: Callable[[str], I]
@@ -117,6 +117,71 @@ class ChatGuardian:
         self, before: Callable[[I], str], after: Callable[[str], I]
     ) -> None:
         self._completion_hooks = _GuardTrailHooks(before=before, after=after)
+
+    def _cache_prompt(
+        self,
+        prompt_messages: list[Guardable],
+        req_id: str = str(uuid.uuid4()),
+    ) -> tuple[str, list[Guardable]]:
+        (hash_key, prompts) = GuardableMessage.hash(prompt_messages)
+        if len(self._rid_cache) >= 20:
+            self._rid_cache.pop(next(iter(self._rid_cache)))
+        self._rid_cache[hash_key] = req_id
+        return req_id, prompts  # type: ignore
+
+    def _pop_prompt(
+        self, prompt_messages: list[Guardable]
+    ) -> tuple[str, list[Guardable]]:
+        (hash_key, prompts) = GuardableMessage.hash(prompt_messages)
+        req_id = self._rid_cache.pop(hash_key, str(uuid.uuid4()))
+        return req_id, prompts  # type: ignore
+
+    async def guard_input(self, prompt_messages: list[Guardable]) -> list[Guardable]:
+        (req_id, prompt) = self._cache_prompt(prompt_messages)
+        processed_result = await self._guard_processor.process_request(
+            body=self._prompt_hooks.before(prompt),
+            request_id=req_id,
+            headers=[
+                ("Content-Type", "application/json"),
+            ],
+            endpoint_identifier=self._endpoint_identifier,
+        )
+        if processed_result is not None:
+            if HttpStatus.is_unauthorized(processed_result.status_code):
+                raise GuardrailsException(
+                    message=processed_result.message or "Invalid messages"
+                )
+            (_, new_prompt) = self._cache_prompt(
+                self._prompt_hooks.after(processed_result.new_body),
+                req_id=req_id,
+            )
+            return new_prompt
+        else:
+            return prompt
+
+    async def guard_output(
+        self, prompt_messages: list[Guardable], completion_messages: list[Guardable]
+    ) -> list[Guardable]:
+        (req_id, prompt) = self._pop_prompt(prompt_messages)
+        processed_result = await self._guard_processor.process_response(
+            body=self._completion_hooks.before(completion_messages),
+            original_request_input=self._prompt_hooks.before(prompt),
+            request_id=req_id,
+            request_headers=[
+                ("Content-Type", "application/json"),
+            ],
+            endpoint_identifier=self._endpoint_identifier,
+        )
+        if processed_result is not None:
+            if processed_result.status_code >= 400:
+                raise GuardrailsException(
+                    message=processed_result.message or "Invalid messages"
+                )
+        return (
+            self._completion_hooks.after(processed_result.new_body)
+            if processed_result
+            else completion_messages
+        )
 
 
 class ChatGuardrails(ChatGuardian):
@@ -131,8 +196,8 @@ class ChatGuardrails(ChatGuardian):
         alltrue_customer_id: str | None = None,
         alltrue_endpoint_identifier: str | None = None,
         logging_level: int | str = logging.INFO,
-        batch_size: int = 5,
-        queue_time: float = 5.0,
+        batch_size: int = 0,
+        queue_time: float = 1.0,
         **kwargs,
     ):
         super().__init__(
@@ -184,12 +249,19 @@ class ChatGuardrails(ChatGuardian):
                 for choice in json.loads(completion).get("choices", [])
             ],
         )
-        self._rid_cache: dict[str, str] = dict()
-        self._batch_processor = BatchRuleProcessor.clone(
-            original=self._rule_processor,
-            batch_size=batch_size,
-            queue_time=queue_time,
-        )
+
+        if batch_size == 0 or queue_time == 0:
+            # either way, batcher will be disabled
+            self._observing_processor = self._guard_processor
+            self._batch_control = None
+        else:
+            self._log.info("[GUARDRAILS] Traces will be processed in batches")
+            self._observing_processor = BatchRuleProcessor.clone(
+                original=self._guard_processor,
+                batch_size=batch_size,
+                queue_time=queue_time,
+            )
+            self._batch_control = {"batch_size": batch_size, "queue_time": queue_time}
         try:
             if asyncio.get_running_loop() is not None:
                 self._executor = asyncio
@@ -197,51 +269,13 @@ class ChatGuardrails(ChatGuardian):
             self._log.info("[GUARDRAILS] No running loop.")
             self._executor = ThreadExecutor()  # type: ignore
 
-    def _cache_prompt(
-        self, prompt_messages: list[Guardable]
-    ) -> tuple[str, list[Guardable]]:
-        req_id = str(uuid.uuid4())
-        _prompts = GuardableMessage.parse_all(prompt_messages)
-        self._rid_cache[_msg_key([msg.content for msg in _prompts])] = req_id
-        return req_id, _prompts  # type: ignore
-
-    def _pop_prompt(
-        self, prompt_messages: list[Guardable]
-    ) -> tuple[str, list[Guardable]]:
-        _prompts = GuardableMessage.parse_all(prompt_messages)
-        req_id = self._rid_cache.pop(
-            _msg_key([msg.content for msg in _prompts]), str(uuid.uuid4())
-        )
-        return req_id, _prompts  # type: ignore
-
-    async def guard_input(self, prompt_messages: list[Guardable]) -> list[Guardable]:
-        (req_id, prompt) = self._cache_prompt(prompt_messages)
-        processed_result = await self._rule_processor.process_request(
-            body=self._prompt_hooks.before(prompt),
-            request_id=req_id,
-            headers=[
-                ("Content-Type", "application/json"),
-            ],
-            endpoint_identifier=self._endpoint_identifier,
-        )
-        if processed_result is not None:
-            if HttpStatus.is_unauthorized(processed_result.status_code):
-                raise GuardrailsException(
-                    message=processed_result.message or "Invalid messages"
-                )
-        return (
-            self._prompt_hooks.after(processed_result.new_body)
-            if processed_result
-            else prompt
-        )
-
     def observe_input(self, prompt_messages: list[Guardable]) -> None:
         """
         Observe the input in the background
         """
         (req_id, prompt) = self._cache_prompt(prompt_messages)
         self._executor.run(
-            self._batch_processor.process_request(
+            self._observing_processor.process_request(
                 body=self._prompt_hooks.before(prompt),
                 request_id=req_id,
                 headers=[
@@ -249,30 +283,6 @@ class ChatGuardrails(ChatGuardian):
                 ],
                 endpoint_identifier=self._endpoint_identifier,
             )
-        )
-
-    async def guard_output(
-        self, prompt_messages: list[Guardable], completion_messages: list[Guardable]
-    ) -> list[Guardable]:
-        (req_id, prompt) = self._pop_prompt(prompt_messages)
-        processed_result = await self._rule_processor.process_response(
-            body=self._completion_hooks.before(completion_messages),
-            original_request_input=self._prompt_hooks.before(prompt),
-            request_id=req_id,
-            request_headers=[
-                ("Content-Type", "application/json"),
-            ],
-            endpoint_identifier=self._endpoint_identifier,
-        )
-        if processed_result is not None:
-            if processed_result.status_code >= 400:
-                raise GuardrailsException(
-                    message=processed_result.message or "Invalid messages"
-                )
-        return (
-            self._completion_hooks.after(processed_result.new_body)
-            if processed_result
-            else completion_messages
         )
 
     def observe_output(
@@ -285,7 +295,7 @@ class ChatGuardrails(ChatGuardian):
         """
         (req_id, prompt) = self._pop_prompt(prompt_messages)
         self._executor.run(
-            self._batch_processor.process_response(
+            self._observing_processor.process_response(
                 body=self._completion_hooks.before(completion_messages),
                 original_request_input=self._prompt_hooks.before(prompt),
                 request_id=req_id,
@@ -297,10 +307,15 @@ class ChatGuardrails(ChatGuardian):
         )
 
     def flush(self, timeout: float = 1.0):
+        """
+        Flush whatever currently queued in batcher
+        """
+        self._rid_cache.clear()
         self._executor.run(
-            self._batch_processor.close(timeout=timeout),
+            self._observing_processor.close(timeout=timeout),
         )
         # restart batcher
-        self._rule_processor = BatchRuleProcessor.clone(
-            original=self._rule_processor,
-        )
+        if self._batch_control:
+            self._observing_processor = BatchRuleProcessor.clone(
+                original=self._observing_processor,
+            )

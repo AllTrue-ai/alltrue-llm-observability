@@ -106,7 +106,7 @@ except GuardrailsException:
 #### 2. Passive Observation - Monitoring Without Validation
 
 ```python
-from alltrue.guardrails.chat import ChatGuardrails
+from alltrue.guardrails.chat import ChatGuardrails, GuardableMessage
 import httpx
 
 # Initialize guardrails
@@ -115,12 +115,25 @@ guardrails = ChatGuardrails(
     alltrue_customer_id="<CUSTOMER_ID>",
     alltrue_endpoint_identifier="<IDENTIFIER>",
     logging_level="WARNING",
+    batch_size=5, # provide a number greater than 0 to enable batch tracing mode
 )
 
 messages = ["What day is today?"]
 
 # Monitor input without validation
 guardrails.observe_input(messages)
+
+# dictionary role included messages as well supposed
+guardrails.observe_input([
+  {"content": "What time is now?", "role": "user"},
+  {"content": "What day was yesterday?", "role": "user"},
+])
+
+# `GuardableMessage` type input as well
+guardrails.observe_input([
+  GuardableMessage(content="How's the weather?", role="user"),
+  GuardableMessage(content="Translate *cat* to Japanese.", role="user"),
+])
 
 # Call OpenAI API with original messages
 api_response = await httpx.AsyncClient(
@@ -166,6 +179,7 @@ observer = OpenAIObserver(
     alltrue_endpoint_identifier="<IDENTIFIER>",
     blocking=False,  # Set to True to validate and potentially block requests
     logging_level="WARNING",
+    batch_size=5,    # Valid when in non-blocking mode, enable sending traces in batches of up to the give size
 )
 
 # Register observer - from this point, all OpenAI client calls will be monitored

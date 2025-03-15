@@ -115,8 +115,8 @@ class OpenAIObserver(BaseObserver):
 
         return EndpointRequest(
             url=str(openai_client.base_url) or "https://api.openai.com/v1"
-            if openai_client.base_url != self._llm_api_url
-            else self._llm_api_url,
+            if openai_client.base_url != self._default_endpoint_info.base_url
+            else self._default_endpoint_info.base_url,
             endpoint=self._resolve_endpoint_info(**all_headers),
             params=[
                 (k, v)
