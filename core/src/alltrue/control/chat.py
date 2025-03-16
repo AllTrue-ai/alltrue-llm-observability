@@ -163,7 +163,7 @@ class RuleProcessor:
             endpoint=f"/check-connection/{llm_api_provider or self.config.llm_api_provider}",
             body={
                 "customer_id": self.config.customer_id,
-                "endpoint-identifier": endpoint_identifier,
+                "endpoint_identifier": endpoint_identifier,
                 "headers": json.dumps(dict(headers) if headers else {}),
             },
             cache=cache,
