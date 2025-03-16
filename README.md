@@ -18,12 +18,13 @@ Alltrue LLM Observability SDK provides monitoring, observability, and guardrails
 
 ```shell
 # Install directly from GitHub
-pip install git+https://github.com/AllTrue-ai/alltrue-llm-sdk.git
+pip install git+ssh://git@github.com/AllTrue-ai/alltrue-llm-observability.git#subdirectory=core
+pip install git+ssh://git@github.com/AllTrue-ai/alltrue-llm-observability.git
 
 
 # For development installation (editable mode)
-git clone https://github.com/AllTrue-ai/alltrue-llm-sdk.git
-cd alltrue-llm-sdk
+git clone git@github.com:AllTrue-ai/alltrue-llm-observability.git
+cd alltrue-llm-observability
 pip install -e .[full]
  ```
 
