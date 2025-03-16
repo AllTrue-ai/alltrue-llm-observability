@@ -15,6 +15,7 @@
 
 import os
 import shutil
+import sys
 from pathlib import Path
 from subprocess import Popen
 
@@ -84,8 +85,8 @@ def init_servers(
 
     llm_process = Popen(
         [
-            os.path.join(PROJECT_DIR, "venv", "bin", "python"),
-            os.path.join(PROJECT_DIR, "venv", "bin", "mitmdump"),
+            sys.executable,
+            os.path.join(os.path.dirname(sys.executable), "mitmdump"),
             "-s",
             os.path.join(TESTS_DIR, "mocks", "openai.py"),
             "--set",

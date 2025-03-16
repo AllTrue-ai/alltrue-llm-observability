@@ -61,7 +61,7 @@ class ThreadExecutor:
 
     def _task_done(self, task: asyncio.Task):
         self._log(
-            logging.INFO,
+            logging.DEBUG,
             f"[LOOP] {'Cancelled' if task.cancelled() else 'Completed'} the execution of {task.get_name()}",
         )
         exc_info = task.exception()
@@ -75,10 +75,12 @@ class ThreadExecutor:
             self._tasks.discard(task)
 
     def ensure_future(
-        self, coroutine: Coroutine[Any, Any, Any], call_back: Callable | None = None
-    ) -> None:
+        self,
+        coroutine: Coroutine[Any, Any, Any],
+        call_back: Callable | None = None,
+    ) -> asyncio.Task[Any]:
         """
-        Similar to `asyncio.ensure_future` to run the given coroutine in the background whenever the lopp is available.
+        Similar to `asyncio.ensure_future` to run the given coroutine in the background whenever the loop is available.
         """
         task = self._loop.create_task(coroutine)
         if call_back:
@@ -86,6 +88,14 @@ class ThreadExecutor:
         task.add_done_callback(self._task_done)
         with self._lock:
             self._tasks.add(task)
+        return task
+
+    def run(
+        self,
+        coroutine: Coroutine[Any, Any, Any],
+        call_back: Callable | None = None,
+    ) -> None:
+        self.ensure_future(coroutine, call_back=call_back)
 
     def stop(self):
         if self.is_running:

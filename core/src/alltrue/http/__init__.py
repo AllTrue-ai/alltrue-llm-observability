@@ -16,13 +16,35 @@
 from enum import IntEnum
 from typing import Literal
 
+import httpx
+
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
 
 
 class HttpStatus(IntEnum):
-    OK = 200
-    MOVED_PERMANENTLY = 301
-    TEMPORARY_REDIRECT = 307
-    PERMANENT_REDIRECT = 308
-    UNAUTHORIZED = 401
-    FORBIDDEN = 403
+    """
+    HTTP Status Codes wrapping from httpx
+    """
+
+    OK = httpx.codes.OK
+    MOVED_PERMANENTLY = httpx.codes.MOVED_PERMANENTLY.value
+    TEMPORARY_REDIRECT = httpx.codes.TEMPORARY_REDIRECT.value
+    PERMANENT_REDIRECT = httpx.codes.PERMANENT_REDIRECT.value
+    UNAUTHORIZED = httpx.codes.UNAUTHORIZED.value
+    FORBIDDEN = httpx.codes.FORBIDDEN.value
+
+    @classmethod
+    def is_success(cls, value: int) -> bool:
+        return httpx.codes.is_success(value)
+
+    @classmethod
+    def is_redirect(cls, value: int) -> bool:
+        return httpx.codes.is_redirect(value)
+
+    @classmethod
+    def is_error(cls, value: int) -> bool:
+        return httpx.codes.is_error(value)
+
+    @classmethod
+    def is_unauthorized(cls, value: int) -> bool:
+        return value in [httpx.codes.UNAUTHORIZED, httpx.codes.FORBIDDEN]

@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 
-
 import json
 import logging
 from datetime import UTC, datetime
@@ -79,17 +78,28 @@ class RuleProcessor:
         customer_id: str | None = None,
         llm_api_provider: str | None = None,
         _connection_keep_alive: str | None = None,
+        **kwargs,
     ):
-        self.config = AlltrueConfig(
-            api_url=api_url,
-            api_key=api_key,
-            customer_id=customer_id,
-            llm_api_provider=llm_api_provider,
-        )
-        self._client = CachableHttpClient(
-            base_url=self.config.api_url,  # type: ignore
-            _keep_alive=_connection_keep_alive,
-        )
+        _config = kwargs.pop("_config", None)
+        if isinstance(_config, AlltrueConfig):
+            self.config = _config
+        else:
+            self.config = AlltrueConfig(
+                api_url=api_url,
+                api_key=api_key,
+                customer_id=customer_id,
+                llm_api_provider=llm_api_provider,
+            )
+
+        _client = kwargs.pop("_client", None)
+        if isinstance(_client, CachableHttpClient):
+            self._client = _client
+        else:
+            self._client = CachableHttpClient(
+                base_url=self.config.api_url,  # type: ignore
+                _keep_alive=_connection_keep_alive,
+            )
+
         self._client.register_cachable(
             CachableEndpoint(
                 path="/v1/llm-firewall/chat/check-connection/",
@@ -100,12 +110,20 @@ class RuleProcessor:
         self._token_manager = TokenRetriever(config=self.config, client=self._client)
 
     async def _call_control(
-        self, endpoint: str, body: dict, cache: bool = False
+        self,
+        endpoint: str,
+        method: HttpMethod = "POST",
+        body: dict | None = None,
+        timeout: float | None = None,
+        cache: bool = False,
     ) -> httpx.Response:
         """
         Call the Control Plane API , retrying if we get a 403 Forbidden in case token has expired
         :param endpoint: The chat api endpoint
+        :param method: The HTTP method to use
         :param body: The original body of the request
+        :param timeout: timeout setting per request level if given
+        :param cache: Should cache the response when sufficient
         :return: HTTPX reply
         """
         token_error_count = 0
@@ -115,24 +133,23 @@ class RuleProcessor:
             )
             if token:
                 logger.debug(
-                    f"[CPA] Request to control\n endpoint: {endpoint}\n token: {token}\n body: {body}\n"
+                    f"[CPA] {method} to control\n endpoint: {endpoint}\n token: {token}\n body: {body}\n"
                 )
-                reply = await self._client.post(
+                reply = await self._client.request(
+                    method=method,
                     url=f"/v1/llm-firewall/chat/{endpoint.removeprefix('/')}",
                     json=body,
                     headers={
                         "content-type": "application/json",
                         "Authorization": f"Bearer {token}",
                     },
+                    timeout=timeout,
                     extensions={"force_cache": True}
                     if cache
                     else {"cache_disabled": True},
                 )
 
-                if reply.status_code not in (
-                    HttpStatus.UNAUTHORIZED,
-                    HttpStatus.FORBIDDEN,
-                ):
+                if not HttpStatus.is_unauthorized(reply.status_code):
                     return reply
 
             token_error_count += 1
@@ -168,7 +185,7 @@ class RuleProcessor:
             },
             cache=cache,
         )
-        if reply.status_code != HttpStatus.OK:
+        if not HttpStatus.is_success(reply.status_code):
             logger.warning(
                 f"[CPA] Check failed: {reply.status_code}-{reply.text}",
             )
@@ -236,7 +253,7 @@ class RuleProcessor:
                 f"/process-input/{proxy_type}",
                 body=api_req_body,
             )
-            if reply.status_code != HttpStatus.OK:
+            if not HttpStatus.is_success(reply.status_code):
                 logger.warning(
                     f"[CPA] Failed to call Control Plane input API: {reply.status_code}-{reply.text}",
                 )
@@ -362,3 +379,13 @@ class RuleProcessor:
                 exc_info=e,
             )
             return None
+
+    @property
+    async def is_running(self) -> bool:
+        # TODO: complete the closure and reopen procedure
+        return True
+
+    async def close(self, timeout: float | None = None) -> None:
+        # TODO: complete the closure and reopen procedure
+        # await asyncio.wait_for(self._client.aclose(), timeout=timeout)
+        pass

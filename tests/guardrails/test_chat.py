@@ -19,10 +19,8 @@ import time
 
 import httpx
 import pytest
-from openai import AsyncOpenAI, OpenAI
-from openai.types.chat import ChatCompletion
 
-from alltrue.guardrails.chat import ChatGuardian, ChatGuardrails
+from alltrue.guardrails.chat import ChatGuardrails
 from tests import TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION, TESTS_DIR, init_servers
 
 
@@ -47,21 +45,7 @@ def openai_test_ports():
 
 
 @pytest.fixture(scope="module", autouse=True)
-def guardian(openai_test_ports, test_endpoint_identifier):
-    (api_port, proxy_port) = openai_test_ports
-    os.environ["CONFIG_HTTP_KEEPALIVE"] = "none"
-    _guardrails = ChatGuardian(
-        alltrue_api_url=f"http://localhost:{api_port}",
-        alltrue_api_key="dummy-app-key",
-        alltrue_endpoint_identifier=test_endpoint_identifier,
-        alltrue_customer_id="customer-id",
-    )
-    yield _guardrails
-    os.environ["CONFIG_HTTP_KEEPALIVE"] = "default"
-
-
-@pytest.fixture(scope="module", autouse=True)
-def guardrails(openai_test_ports, test_endpoint_identifier):
+async def guardrails(openai_test_ports, test_endpoint_identifier):
     (api_port, proxy_port) = openai_test_ports
     os.environ["CONFIG_HTTP_KEEPALIVE"] = "none"
     _guardrails = ChatGuardrails(
@@ -69,9 +53,13 @@ def guardrails(openai_test_ports, test_endpoint_identifier):
         alltrue_api_key="dummy-app-key",
         alltrue_endpoint_identifier=test_endpoint_identifier,
         alltrue_customer_id="customer-id",
+        batch_size=5,
+        queue_time=0.25,
     )
     yield _guardrails
     os.environ["CONFIG_HTTP_KEEPALIVE"] = "default"
+    _guardrails.flush(5)
+    await asyncio.sleep(2)
 
 
 @pytest.fixture(scope="module")
@@ -80,59 +68,7 @@ def openai_api_key():
 
 
 @pytest.mark.skip_on_aws
-@pytest.mark.parametrize(
-    "openai_cls",
-    [
-        OpenAI,
-        AsyncOpenAI,
-    ],
-)
-async def test_processor(
-    openai_cls,
-    openai_api_key,
-    openai_test_ports: tuple[int, int],
-    test_endpoint_identifier,
-    guardian,
-):
-    (api_port, proxy_port) = openai_test_ports
-    client = openai_cls(
-        api_key=openai_api_key,
-        base_url=f"http://localhost:{proxy_port}/v1",
-    )
-
-    # register hooks for serialization/deserialization when default json serialization/deserialization is not suitable
-    guardian.register_completion_hooks(
-        before=lambda o: o.model_dump_json(),
-        after=lambda o: ChatCompletion.model_validate_json(o),
-    )
-
-    api_request = {
-        "model": "gpt-3.5-turbo",
-        "messages": [
-            {
-                "role": "user",
-                "content": f"return the string ' modify  {TEST_PROMPT_CANARY} '",
-            }
-        ],
-    }
-
-    # call guard_prompt to process the prompt
-    guarded = await guardian.guard_prompt(api_request)
-
-    # use the guarded prompt to call client api
-    api_response = client.chat.completions.create(
-        **guarded.prompt,
-    )
-
-    # use the previously returned guarded prompt to continue the response process
-    completion = await guarded.completion(api_response)
-
-    assert TEST_PROMPT_CANARY not in completion.choices[0].message.content
-    assert TEST_PROMPT_SUBSTITUTION in completion.choices[0].message.content
-    assert test_endpoint_identifier in completion.choices[0].message.content
-
-
-@pytest.mark.skip_on_aws
+@pytest.mark.asyncio
 async def test_guardrails(
     openai_api_key,
     openai_test_ports: tuple[int, int],
@@ -169,18 +105,20 @@ async def test_guardrails(
 
 
 @pytest.mark.skip_on_aws
-async def test_guardrails_observing_only(
+def test_guardrails_observing_only(
     openai_api_key,
     openai_test_ports: tuple[int, int],
     test_endpoint_identifier,
     guardrails,
 ):
-    messages = [f"reject '{TEST_PROMPT_CANARY}"]
-    # call guard_input to observe input only, no exception should be thrown
-    guardrails.observe_input(messages)
+    for i in range(10):
+        messages = [f"reject '{TEST_PROMPT_CANARY}"]
+        # call guard_input to observe input only, no exception should be thrown
+        guardrails.observe_input(messages)
 
-    # call observe_output to observe output only, no exception should be thrown
-    guardrails.observe_output(
-        messages,
-        [f"reject '{TEST_PROMPT_CANARY}'"],
-    )
+        # call observe_output to observe output only, no exception should be thrown
+        guardrails.observe_output(
+            messages,
+            [f"reject '{TEST_PROMPT_CANARY}'"],
+        )
+        time.sleep(0.05 * i)

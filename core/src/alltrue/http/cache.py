@@ -42,6 +42,7 @@ def _get_http_timeout_config() -> httpx.Timeout:
 def _get_http_transport_config(
     verify: bool = True,
     keep_alive: str | None = None,
+    retries: int = 0,
 ) -> httpx.AsyncHTTPTransport | None:
     keepalive_value = (
         keep_alive
@@ -56,6 +57,7 @@ def _get_http_transport_config(
         return httpx.AsyncHTTPTransport(
             verify=verify,
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=0),
+            retries=retries,
         )
     else:
         # use default keep alive settings
@@ -104,8 +106,34 @@ class PathBasedCacheController(hishel.Controller):
                     return True
         return matched or super().is_cachable(request, response)
 
-    def register_cachable(self, cachable: CachableEndpoint):
-        self._registries.append(cachable)
+    def is_registered(self, endpoint: str) -> bool:
+        return any(
+            [
+                endpoint.startswith(reg.path) or reg.path.startswith(endpoint)
+                for reg in self._registries
+            ]
+        )
+
+    def register_cachable(
+        self, cachable: CachableEndpoint, update: bool = False
+    ) -> None:
+        if not self.is_registered(cachable.path):
+            self._registries.append(cachable)
+        elif update:
+            # update registered with the given one
+            for registry in self._registries:
+                if cachable.path.startswith(registry.path) or registry.path.startswith(
+                    cachable.path
+                ):
+                    self._registries.remove(registry)
+                    self._registries.append(
+                        CachableEndpoint(
+                            path=min(cachable.path, registry.path),
+                            methods=list({*cachable.methods, *registry.methods}),
+                            key_generator=cachable.key_generator,
+                        )
+                    )
+                    break
 
 
 class CachableHttpClient(httpx.AsyncClient):

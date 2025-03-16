@@ -44,8 +44,15 @@ def openai_test_ports():
     api_process.terminate()
 
 
-@pytest.fixture(scope="module", autouse=True)
-def observer(openai_test_ports):
+@pytest.fixture(scope="module")
+def blocking():
+    return False
+
+
+@pytest.fixture
+async def openai_client(
+    request, openai_test_ports, blocking, openai_api_key, test_endpoint_identifier
+):
     (api_port, proxy_port) = openai_test_ports
     os.environ["CONFIG_HTTP_KEEPALIVE"] = "none"
     observer = OpenAIObserver(
@@ -53,12 +60,22 @@ def observer(openai_test_ports):
         alltrue_api_key="dummy-app-key",
         alltrue_customer_id="dummy-customer-id",
         alltrue_endpoint_identifier="dummy-endpoint-identifier",
-        blocking=False,
+        blocking=blocking,
         logging_level="DEBUG",
+        batch_size=5,
+        queue_time=0.5,
     )
     observer.register()
-    yield
+    _cls = request.param
+    yield _cls(
+        api_key=openai_api_key,
+        base_url=f"http://localhost:{proxy_port}/v1",
+        default_headers={
+            "x-alltrue-llm-endpoint-identifier": test_endpoint_identifier,
+        },
+    )
     observer.unregister()
+    await asyncio.sleep(3)
     os.environ["CONFIG_HTTP_KEEPALIVE"] = "default"
 
 
@@ -70,75 +87,38 @@ def openai_api_key():
 @pytest.mark.skip_on_aws
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "openai_cls",
+    "openai_client",
     [
-        OpenAI,
         AsyncOpenAI,
+        OpenAI,
     ],
+    indirect=True,
 )
 async def test_openai(
-    openai_cls,
+    openai_client,
     openai_api_key,
     openai_test_ports: tuple[int, int],
     test_endpoint_identifier,
+    blocking,
 ):
-    (api_port, proxy_port) = openai_test_ports
+    for i in range(1 if blocking else 10):
+        completion = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"return the string ' modify  {TEST_PROMPT_CANARY} ' - {i}",
+                }
+            ],
+        )
+        if asyncio.iscoroutine(completion):
+            completion = await completion
 
-    client = openai_cls(
-        api_key=openai_api_key,
-        base_url=f"http://localhost:{proxy_port}/v1",
-        default_headers={
-            "x-alltrue-llm-endpoint-identifier": test_endpoint_identifier,
-        },
-    )
-    completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "user",
-                "content": f"return the string ' modify  {TEST_PROMPT_CANARY} '",
-            }
-        ],
-    )
-    if asyncio.iscoroutine(completion):
-        completion = await completion
-    assert TEST_PROMPT_CANARY in completion.choices[0].message.content
-    assert TEST_PROMPT_SUBSTITUTION not in completion.choices[0].message.content
-    assert test_endpoint_identifier not in completion.choices[0].message.content
-    await asyncio.sleep(1)
-
-
-@pytest.mark.skip_on_aws
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "openai_cls",
-    [
-        OpenAI,
-        AsyncOpenAI,
-    ],
-)
-async def test_openai_no_rule(
-    openai_cls,
-    openai_api_key,
-    openai_test_ports: tuple[int, int],
-):
-    (api_port, proxy_port) = openai_test_ports
-
-    client = openai_cls(
-        api_key=openai_api_key,
-        base_url=f"http://localhost:{proxy_port}/v1",
-        default_headers={"x-alltrue-llm-endpoint-identifier": "__no_rule__"},
-    )
-    completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "user",
-                "content": f"print the string 'rewrite-reply {TEST_PROMPT_CANARY}' ",
-            },
-        ],
-    )
-    if asyncio.iscoroutine(completion):
-        completion = await completion
-    assert TEST_PROMPT_CANARY in completion.choices[0].message.content
-    await asyncio.sleep(1)
+        assert (TEST_PROMPT_CANARY in completion.choices[0].message.content) != blocking
+        assert (
+            TEST_PROMPT_SUBSTITUTION not in completion.choices[0].message.content
+        ) != blocking
+        assert (
+            test_endpoint_identifier not in completion.choices[0].message.content
+        ) != blocking
+        await asyncio.sleep(0.1 * i)
