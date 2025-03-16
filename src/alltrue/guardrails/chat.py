@@ -1,14 +1,18 @@
-#  Copyright 2023-2024 AllTrue.ai Inc
-#  All Rights Reserved.
+#  Copyright 2025 AllTrue.ai Inc.
 #
-#  NOTICE: All information contained herein is, and remains
-#  the property of AllTrue.ai Incorporated. The intellectual and technical
-#  concepts contained herein are proprietary to AllTrue.ai Incorporated
-#  and may be covered by U.S. and Foreign Patents,
-#  patents in process, and are protected by trade secret or copyright law.
-#  Dissemination of this information or reproduction of this material
-#  is strictly forbidden unless prior written permission is obtained
-#  from AllTrue.ai Incorporated.
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
 import asyncio
 import json
 import logging
@@ -18,7 +22,7 @@ from typing import Any, Callable, Coroutine, Generic, TypeVar
 
 from alltrue.control.chat import RuleProcessor
 from alltrue.utils.config import get_value
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from alltrue.event.loop import ThreadExecutor
 from alltrue.guardrails import _msg_key
@@ -36,6 +40,40 @@ class GuardrailsException(Exception):
     def __init__(self, message: str, *args, **kwargs):
         self.message = message
         super().__init__(*args, **kwargs)
+
+
+class GuardableMessage(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    content: str
+    role: str = "user"
+
+    @classmethod
+    def parse(cls, content: Any, role: str | None = None) -> "GuardableMessage":
+        match content:
+            case _guardable if type(content).__name__ == "GuardableMessage":
+                return _guardable
+            case _model if issubclass(type(_model), BaseModel):
+                return GuardableMessage(**_model.model_dump())
+            case _dict if isinstance(_dict, dict):
+                return GuardableMessage(**_dict)
+            case others:
+                return GuardableMessage(
+                    **{
+                        "content": str(others),
+                        **({"role": role} if role is not None else {}),
+                    }
+                )
+
+    @classmethod
+    def parse_all(cls, contents: list[Any]) -> list["GuardableMessage"]:
+        return [cls.parse(msg) for msg in contents]
+
+    @classmethod
+    def hash(cls, contents: list[Any]) -> str:
+        return _msg_key([msg.content for msg in cls.parse_all(contents)])
+
+
+Guardable = GuardableMessage | dict[str, str] | str
 
 
 class _GuardedPrompt(BaseModel, Generic[I]):
@@ -65,7 +103,7 @@ class _GuardTrailHooks(BaseModel):
     after: Callable[[str], I] = json.loads
 
 
-class ChatGuardrails:
+class ChatGuardian:
     def __init__(
         self,
         input_query: str | None = None,
@@ -77,7 +115,7 @@ class ChatGuardrails:
         logging_level: int | str = logging.INFO,
         _api_provider: str = "any",
     ):
-        self._log = logging.getLogger("alltrue.guardrails")
+        self._log = logging.getLogger(__name__)
         self._log.setLevel(logging_level)
 
         self._processor_cfg = (
@@ -118,7 +156,7 @@ class ChatGuardrails:
         processed_result = await self._process_input(req_id=req_id, prompt=prompt)
         return _GuardedPrompt.init(
             req_id=req_id,
-            prompt=processed_result if processed_result else prompt,
+            prompt=processed_result,
             _callable=self._process_output,
         )
 
@@ -138,7 +176,9 @@ class ChatGuardrails:
         )
         if processed_result is not None:
             if processed_result.status_code >= 400:
-                raise GuardrailsException(message=processed_result.message)
+                raise GuardrailsException(
+                    message=processed_result.message or "Invalid messages"
+                )
         return (
             self._prompt_hooks.after(processed_result.new_body)
             if processed_result
@@ -164,8 +204,10 @@ class ChatGuardrails:
             endpoint_identifier=self._endpoint_identifier,
         )
         if processed_result is not None:
-            if processed_result.status_code > 400:
-                raise GuardrailsException(message=processed_result.message)
+            if processed_result.status_code >= 400:
+                raise GuardrailsException(
+                    message=processed_result.message or "Invalid messages"
+                )
         return (
             self._completion_hooks.after(processed_result.new_body)
             if processed_result
@@ -173,34 +215,34 @@ class ChatGuardrails:
         )
 
 
-class ChatGuardrailsLite:
+class ChatGuardrails:
     """
     Lite version of Guardrails for string messages
     """
 
     def __init__(self, **kwargs):
-        self._guard = ChatGuardrails(
+        self._guard = ChatGuardian(
             **kwargs,
             input_query="messages[*].content",
             output_query="choices[*].message.content",
             _api_provider="openai",
         )
         self._guard.register_prompt_hooks(
-            before=lambda list_of_msg: json.dumps(
+            before=lambda messages: json.dumps(
                 {
                     "model": "gpt-4o",
                     "messages": [
-                        {"content": msg, "role": "user"} for msg in list_of_msg
+                        GuardableMessage.parse(msg).model_dump() for msg in messages
                     ],
                 }
             ),
-            after=lambda text_of_msgs: [
-                msg.get("content", "")
-                for msg in json.loads(text_of_msgs).get("messages", [])
+            after=lambda prompt: [
+                GuardableMessage.parse(msg)
+                for msg in json.loads(prompt).get("messages", [])
             ],
         )
         self._guard.register_completion_hooks(
-            before=lambda list_of_msg: json.dumps(
+            before=lambda messages: json.dumps(
                 {
                     "id": str(uuid.uuid4()),
                     "created": int(datetime.now(UTC).timestamp()),
@@ -208,11 +250,11 @@ class ChatGuardrailsLite:
                     "model": "gpt-4o",
                     "choices": [
                         {
-                            "message": {"content": msg, "role": "assistant"},
+                            "message": GuardableMessage.parse(msg).model_dump(),
                             "index": i,
                             "finish_reason": "stop",
                         }
-                        for i, msg in enumerate(list_of_msg)
+                        for i, msg in enumerate(messages)
                     ],
                     "usage": {
                         "prompt_tokens": 0,
@@ -222,27 +264,28 @@ class ChatGuardrailsLite:
                     },
                 }
             ),
-            after=lambda text_of_choices: [
-                choice.get("message", {}).get("content", "")
-                for choice in json.loads(text_of_choices).get("choices", [])
+            after=lambda completion: [
+                GuardableMessage.parse(
+                    content=choice.get("message", {}), role="assistant"
+                )
+                for choice in json.loads(completion).get("choices", [])
             ],
         )
-        self._log = self._guard._log
+        self._log = logging.getLogger(__name__)
         self._rid_cache = dict()
         self._loop = ThreadExecutor()
 
-    async def guard_input(self, prompt_messages: list[str]) -> list[str]:
+    async def guard_input(self, prompt_messages: list[Guardable]) -> list[Guardable]:
         """
         Guard the input messages by either returning new suggestions or throw out denied exception
         """
         req_id = str(uuid.uuid4())
-        guarded_input = await self._guard._process_input(
-            req_id=req_id, prompt=prompt_messages
-        )
-        self._rid_cache[_msg_key(prompt_messages)] = req_id
+        _prompts = GuardableMessage.parse_all(prompt_messages)
+        guarded_input = await self._guard._process_input(req_id=req_id, prompt=_prompts)
+        self._rid_cache[_msg_key([msg.content for msg in _prompts])] = req_id
         return guarded_input
 
-    def observe_input(self, prompt_messages: list[str]) -> None:
+    def observe_input(self, prompt_messages: list[Guardable]) -> None:
         """
         Observe the input in the background
         """
@@ -251,21 +294,24 @@ class ChatGuardrailsLite:
         )
 
     async def guard_output(
-        self, prompt_messages: list[str], completion_messages: list[str]
-    ) -> list[str]:
+        self, prompt_messages: list[Guardable], completion_messages: list[Guardable]
+    ) -> list[Guardable]:
         """
         Guard the output messages by either returning new suggestions or thrown out denied exception
         """
-        req_id = self._rid_cache.pop(_msg_key(prompt_messages), str(uuid.uuid4()))
+        _prompts = GuardableMessage.parse_all(prompt_messages)
+        req_id = self._rid_cache.pop(
+            _msg_key([msg.content for msg in _prompts]), str(uuid.uuid4())
+        )
         guard_output = await self._guard._process_output(
-            req_id=req_id, prompt=prompt_messages, completion=completion_messages
+            req_id=req_id, prompt=_prompts, completion=completion_messages
         )
         return guard_output
 
     def observe_output(
         self,
-        prompt_messages: list[str],
-        completion_messages: list[str],
+        prompt_messages: list[Guardable],
+        completion_messages: list[Guardable],
     ) -> None:
         """
         Observe the output in the background

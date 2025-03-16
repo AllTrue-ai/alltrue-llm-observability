@@ -3,25 +3,27 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project]
-name = "alltrue-customer-sdk"
+name = "alltrue-llm-observability"
 readme = "README.md"
 dynamic = ["version"]
 authors = [
     {name = "AllTrue.ai INC", email = "ury@alltrue.ai"}
 ]
-description = "Client SDK for AllTrue.ai API"
-dependencies = [
-    "openai~=1.63.0",
-    "wrapt~=1.17.2",
-]
+description = "LLM Observability SDK for AllTrue.ai API"
 requires-python = ">= 3.11"
+license = {text = "Apache-2.0"}
+
 
 [project.urls]
-Repository = "https://github.com/AllTrue-ai/alltrue-customer-sdk"
+Repository = "https://github.com/AllTrue-ai/alltrue-llm-observability"
 
 [project.optional-dependencies]
-full = [
-    "alltrue-customer-core @ file:///${PROJECT_ROOT}/core",
+observers = [
+    "wrapt~=1.17.2",
+]
+openai-observers = [
+    "alltrue-llm-observability[observers]",
+    "openai~=1.63.0",
 ]
 testing = [
     "fastapi~=0.111.1",
@@ -30,6 +32,12 @@ testing = [
 dev = [
     "build",
     "pre-commit",
+]
+full = [
+    "alltrue-llm-observability-core[testing] @ file:///${PROJECT_ROOT}/core",
+    "alltrue-llm-observability[openai-observers]",
+    "alltrue-llm-observability[testing]",
+    "alltrue-llm-observability[dev]",
 ]
 
 [tool.pdm.version]
@@ -42,7 +50,12 @@ custom-hook = "src/build.py"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-o log_cli=true -o log_cli=info -o consider_namespace_packages=true"
+addopts = [
+    "-o log_cli=true",
+    "-o log_cli=info",
+    "-o consider_namespace_packages=true",
+    "--import-mode=importlib",
+]
 asyncio_mode = "auto"
 markers = [
     "skip_on_aws: marks tests to be skipped on AWS",
@@ -51,3 +64,14 @@ pythonpath = [
     "src",
     "core/src",
 ]
+
+[tool.mypy]
+mypy_path = "src:core/src"
+namespace_packages = true
+explicit_package_bases = true
+exclude = "core/tests/__init__.py"
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_missing_imports = true
+follow_imports_for_stubs = true

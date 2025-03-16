@@ -3,23 +3,31 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project]
-name = "alltrue-customer-core"
+name = "alltrue-llm-observability-core"
 dynamic = ["version"]
 authors = [
     {name = "AllTrue.ai INC", email = "ury@alltrue.ai"}
 ]
-description = "Client Library for AllTrue.ai API"
+description = "LLM Observability Core Library for AllTrue.ai API"
 dependencies = [
     "hishel~=0.1.1",
     "httpx~=0.28.0",
     "logfunc~=2.9.1",
     "pydantic>=2.6.4",
-    "python-dotenv~=0.21.1",
+    "python-dotenv~=1.0.1",
 ]
 requires-python = ">= 3.11"
 
 [project.urls]
-Repository = "https://github.com/AllTrue-ai/ai-security-customer-plane"
+Repository = "https://github.com/AllTrue-ai/alltrue-llm-observability"
+
+[project.optional-dependencies]
+testing = [
+    "pytest~=8.3.5",
+    "pytest_httpx~=0.35.0",
+    "pytest-asyncio~=0.25.3",
+    "nest-asyncio~=1.6.0",
+]
 
 [tool.pdm.version]
 source = "file"
@@ -30,7 +38,12 @@ includes = ["src/alltrue"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-o log_cli=true -o log_cli=info -o consider_namespace_packages=true"
+addopts = [
+    "-o log_cli=true",
+    "-o log_cli=info",
+    "-o consider_namespace_packages=true",
+    "--import-mode=importlib",
+]
 asyncio_mode = "auto"
 markers = [
     "skip_on_aws: marks tests to be skipped on AWS",

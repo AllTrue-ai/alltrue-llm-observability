@@ -1,14 +1,18 @@
-#  Copyright 2023-2024 AllTrue.ai Inc
-#  All Rights Reserved.
+#  Copyright 2025 AllTrue.ai Inc.
 #
-#  NOTICE: All information contained herein is, and remains
-#  the property of AllTrue.ai Incorporated. The intellectual and technical
-#  concepts contained herein are proprietary to AllTrue.ai Incorporated
-#  and may be covered by U.S. and Foreign Patents,
-#  patents in process, and are protected by trade secret or copyright law.
-#  Dissemination of this information or reproduction of this material
-#  is strictly forbidden unless prior written permission is obtained
-#  from AllTrue.ai Incorporated.
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
 
 import json
 import logging
@@ -27,7 +31,7 @@ from ._internal.token import TokenRetriever
 
 MAX_TOKEN_REFRESH_RETRIES = 5
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("alltrue.rule")
 
 
 def _parse_url(
@@ -83,7 +87,7 @@ class RuleProcessor:
             llm_api_provider=llm_api_provider,
         )
         self._client = CachableHttpClient(
-            base_url=self.config.api_url,
+            base_url=self.config.api_url,  # type: ignore
             _keep_alive=_connection_keep_alive,
         )
         self._client.register_cachable(
@@ -159,7 +163,7 @@ class RuleProcessor:
             endpoint=f"/check-connection/{llm_api_provider or self.config.llm_api_provider}",
             body={
                 "customer_id": self.config.customer_id,
-                "endpoint-identifier": endpoint_identifier,
+                "endpoint_identifier": endpoint_identifier,
                 "headers": json.dumps(dict(headers) if headers else {}),
             },
             cache=cache,

@@ -1,41 +1,43 @@
 #
-#  Copyright 2023-2024 AllTrue.ai Inc
-#  All Rights Reserved.
+#  Copyright 2025 AllTrue.ai Inc.
 #
-#  NOTICE: All information contained herein is, and remains
-#  the property of AllTrue.ai Incorporated. The intellectual and technical
-#  concepts contained herein are proprietary to AllTrue.ai Incorporated
-#  and may be covered by U.S. and Foreign Patents,
-#  patents in process, and are protected by trade secret or copyright law.
-#  Dissemination of this information or reproduction of this material
-#  is strictly forbidden unless prior written permission is obtained
-#  from AllTrue.ai Incorporated.
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
 import json
-import logging
 from typing import Optional, cast
 
 from fastapi import FastAPI, Request
 
 from .. import TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION
 
-logger = logging.getLogger("mock:control")
 app = FastAPI()
 
 
 @app.post("/v1/llm-firewall/chat/check-connection/{proxy_type}")
 async def check_connection(request: Request, proxy_type: str):
-    logger.info(f"checking connection for {proxy_type}")
+    print(f"checking connection for {proxy_type}")
     return {"status_code": 200}
 
 
 @app.post("/v1/llm-firewall/chat/process-input/{proxy_type}")
 async def chat_request(request: Request, proxy_type: str):
     data = await request.json()
-    logger.info(f"chat request for type {proxy_type}: orig: {data}")
+    print(f"chat request for type {proxy_type}: orig: {data}")
     js_body = json.loads(data["original_request_body"])
-    logger.info(f"prompt messages: {js_body['messages']}")
+    print(f"prompt messages: {js_body['messages']}")
     txt = js_body["messages"][-1]["content"]
-    logger.info(f"prompt message: {txt}")
+    print(f"prompt message: {txt}")
     status = 200
     if TEST_PROMPT_CANARY in txt:
         if "reject" in txt:
@@ -46,7 +48,7 @@ async def chat_request(request: Request, proxy_type: str):
                 TEST_PROMPT_CANARY,
                 f"{TEST_PROMPT_SUBSTITUTION} {data['endpoint_identifier']}",
             )
-            logger.info(f"New prompt content: {new_txt}")
+            print(f"New prompt content: {new_txt}")
             js_body["messages"][-1]["content"] = new_txt
     return {"processed_input": json.dumps(js_body), "status_code": status}
 
@@ -57,7 +59,7 @@ async def chat_response(request: Request, proxy_type: str):
     js_body = json.loads(data["original_response_body"])
 
     txt = js_body["choices"][-1]["message"]["content"]
-    logger.info(f"chat response for type: {proxy_type} body: {txt}")
+    print(f"chat response for type: {proxy_type} body: {txt}")
     status = 200
     if TEST_PROMPT_CANARY in txt:
         if "rewrite-reply" in txt:
@@ -552,7 +554,7 @@ async def llm_rules(request: Request):
 
 @app.post("/v1/auth/issue-jwt-token")
 async def get_jwt_token(request: Request):
-    logger.info(
+    print(
         f"Asked for token via API Key: {(await request.json()).get('api_key', 'unknown')}"
     )
     return {
