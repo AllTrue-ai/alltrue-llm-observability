@@ -18,11 +18,11 @@ Alltrue LLM Observability SDK provides monitoring, observability, and guardrails
 
 ```shell
 # Install directly from GitHub
-pip install git+https://github.com/AllTrue-ai/alltrue-llm-sdk.git
+pip install git+https://github.com/AllTrue-ai/alltrue-llm-observability.git
 
 
 # For development installation (editable mode)
-git clone https://github.com/AllTrue-ai/alltrue-llm-sdk.git
+git clone https://github.com/AllTrue-ai/alltrue-llm-observability.git
 cd alltrue-llm-sdk
 pip install -e .[full]
  ```
@@ -105,7 +105,7 @@ except GuardrailsException:
 #### 2. Passive Observation - Monitoring Without Validation
 
 ```python
-from alltrue.guardrails.chat import ChatGuardrails
+from alltrue.guardrails.chat import ChatGuardrails, GuardableMessage
 import httpx
 
 # Initialize guardrails
@@ -120,6 +120,18 @@ messages = ["What day is today?"]
 
 # Monitor input without validation
 guardrails.observe_input(messages)
+
+# dictionary role included messages as well supposed
+guardrails.observe_input([
+  {"content": "What time is now?", "role": "user"},
+  {"content": "What day was yesterday?", "role": "user"},
+])
+
+# `GuardableMessage` type input as well
+guardrails.observe_input([
+  GuardableMessage(content="How's the weather?", role="user"),
+  GuardableMessage(content="Translate *cat* to Japanese.", role="user"),
+])
 
 # Call OpenAI API with original messages
 api_response = await httpx.AsyncClient(

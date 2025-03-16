@@ -22,13 +22,23 @@ _CORE_HOME = os.path.join("core", "src")
 
 
 def pdm_build_update_files(context, files):
-    context.config.metadata.pop("optional-dependencies")
+    # to build wheel bundle with the core lib
+    optionals = context.config.metadata.pop("optional-dependencies", dict())
+    context.config.metadata["optional-dependencies"] = dict(
+        filter(lambda dep: "observers" in dep[0], optionals.items())
+    )
     with open(
         os.path.join(_CORE_HOME, "..", "pyproject.toml"), "rb"
     ) as core_project_file:
         core_project = tomllib.load(core_project_file)
         if not "dependencies" in context.config.metadata:
             context.config.metadata["dependencies"] = []
+        context.config.metadata["dependencies"] = list(
+            filter(
+                lambda dep: "alltrue-llm-observability-core" not in dep,
+                context.config.metadata.pop("dependencies", []),
+            )
+        )
         context.config.metadata["dependencies"].extend(
             core_project["project"]["dependencies"]
         )

@@ -10,9 +10,20 @@ authors = [
     {name = "AllTrue.ai INC", email = "ury@alltrue.ai"}
 ]
 description = "LLM Observability SDK for AllTrue.ai API"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 requires-python = ">= 3.11"
 license = {text = "Apache-2.0"}
-
+dependencies = [
+    "alltrue-llm-observability-core @ file:///${PROJECT_ROOT}/core",
+]
 
 [project.urls]
 Repository = "https://github.com/AllTrue-ai/alltrue-llm-observability"
