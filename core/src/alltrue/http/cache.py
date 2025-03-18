@@ -137,6 +137,10 @@ class PathBasedCacheController(hishel.Controller):
 
 
 class CachableHttpClient(httpx.AsyncClient):
+    """
+    Cache enabled HTTP client accepts path based caching rules.
+    """
+
     def __init__(
         self,
         base_url: str,

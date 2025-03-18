@@ -22,7 +22,7 @@ _CORE_HOME = os.path.join("core", "src")
 
 
 def pdm_build_update_files(context, files):
-    # to build wheel bundle with the core lib
+    # to build wheel bundles core lib
     optionals = context.config.metadata.pop("optional-dependencies", dict())
     context.config.metadata["optional-dependencies"] = dict(
         filter(lambda dep: "observers" in dep[0], optionals.items())

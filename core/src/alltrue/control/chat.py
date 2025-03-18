@@ -12,25 +12,22 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-
+import functools
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from json import JSONDecodeError
 from typing import NamedTuple
 
 import httpcore
 import httpx
-from alltrue.control import LLM_API_KEY_PATTERN
-from alltrue.utils.config import AlltrueConfig
 
 from ..http import HttpMethod, HttpStatus
-from ..http.cache import CachableEndpoint, CachableHttpClient
-from ._internal.token import TokenRetriever
+from ..http.cache import CachableEndpoint
+from . import APIClient
 
-MAX_TOKEN_REFRESH_RETRIES = 5
-
-logger = logging.getLogger("alltrue.rule")
+LLM_API_KEY_PATTERN = re.compile(r"(x-[\w\-]*key|[aA]uthorization)$")
 
 
 def _parse_url(
@@ -48,7 +45,9 @@ def _parse_url(
     }
 
 
-def _gen_cache_key(request: httpcore.Request, body: bytes = b"") -> bytes:
+def _gen_cache_key(
+    request: httpcore.Request, body: bytes = b"", logger: logging.Logger | None = None
+) -> bytes:
     """
     Cache key composed by api key and url path
     """
@@ -60,7 +59,8 @@ def _gen_cache_key(request: httpcore.Request, body: bytes = b"") -> bytes:
             if LLM_API_KEY_PATTERN.match(attr) is not None:
                 return val.encode("utf-8")
     except JSONDecodeError:
-        logger.debug("[CPA] Skip body parsing for generating cache key")
+        if logger:
+            logger.debug("Skip body parsing for generating cache key")
     return body
 
 
@@ -70,46 +70,34 @@ class ProcessResult(NamedTuple):
     message: str | None = None
 
 
-class RuleProcessor:
+class RuleProcessor(APIClient):
     def __init__(
         self,
         api_url: str | None = None,
         api_key: str | None = None,
         customer_id: str | None = None,
         llm_api_provider: str | None = None,
+        logging_level: int | str = logging.INFO,
         _connection_keep_alive: str | None = None,
         **kwargs,
     ):
-        _config = kwargs.pop("_config", None)
-        if isinstance(_config, AlltrueConfig):
-            self.config = _config
-        else:
-            self.config = AlltrueConfig(
-                api_url=api_url,
-                api_key=api_key,
-                customer_id=customer_id,
-                llm_api_provider=llm_api_provider,
-            )
-
-        _client = kwargs.pop("_client", None)
-        if isinstance(_client, CachableHttpClient):
-            self._client = _client
-        else:
-            self._client = CachableHttpClient(
-                base_url=self.config.api_url,  # type: ignore
-                _keep_alive=_connection_keep_alive,
-            )
-
+        super().__init__(
+            api_url=api_url,
+            api_key=api_key,
+            customer_id=customer_id,
+            llm_api_provider=llm_api_provider,
+            logging_level=logging_level,
+            **kwargs,
+        )
         self._client.register_cachable(
             CachableEndpoint(
                 path="/v1/llm-firewall/chat/check-connection/",
                 methods=["POST"],
-                key_generator=_gen_cache_key,
+                key_generator=functools.partial(_gen_cache_key, logger=self.log),
             )
         )
-        self._token_manager = TokenRetriever(config=self.config, client=self._client)
 
-    async def _call_control(
+    async def _chat(
         self,
         endpoint: str,
         method: HttpMethod = "POST",
@@ -117,54 +105,13 @@ class RuleProcessor:
         timeout: float | None = None,
         cache: bool = False,
     ) -> httpx.Response:
-        """
-        Call the Control Plane API , retrying if we get a 403 Forbidden in case token has expired
-        :param endpoint: The chat api endpoint
-        :param method: The HTTP method to use
-        :param body: The original body of the request
-        :param timeout: timeout setting per request level if given
-        :param cache: Should cache the response when sufficient
-        :return: HTTPX reply
-        """
-        token_error_count = 0
-        while token_error_count < MAX_TOKEN_REFRESH_RETRIES:
-            token = await self._token_manager.get_token(
-                refresh=token_error_count > 0,
-            )
-            if token:
-                logger.debug(
-                    f"[CPA] {method} to control\n endpoint: {endpoint}\n token: {token}\n body: {body}\n"
-                )
-                reply = await self._client.request(
-                    method=method,
-                    url=f"/v1/llm-firewall/chat/{endpoint.removeprefix('/')}",
-                    json=body,
-                    headers={
-                        "content-type": "application/json",
-                        "Authorization": f"Bearer {token}",
-                    },
-                    timeout=timeout,
-                    extensions={"force_cache": True}
-                    if cache
-                    else {"cache_disabled": True},
-                )
-
-                if not HttpStatus.is_unauthorized(reply.status_code):
-                    return reply
-
-            token_error_count += 1
-            logger.warning(
-                "[CPA] Auth failed with Control Plane API,"
-                f"retrying {token_error_count} out of {MAX_TOKEN_REFRESH_RETRIES}"
-            )
-        else:
-            logger.error(
-                "[CPA] Failed too many times for retrieving a valid token. Giving up."
-            )
-            return httpx.Response(
-                status_code=HttpStatus.UNAUTHORIZED,
-                content=f"Too many token refresh errors. Giving up.",
-            )
+        return await super()._request(
+            endpoint=f"/v1/llm-firewall/chat/{endpoint.removeprefix('/')}",
+            method=method,
+            body=body,
+            timeout=timeout,
+            cache=cache,
+        )
 
     async def check_connection(
         self,
@@ -176,7 +123,7 @@ class RuleProcessor:
         """
         Check the given endpoint identifier is valid
         """
-        reply = await self._call_control(
+        reply = await self._chat(
             endpoint=f"/check-connection/{llm_api_provider or self.config.llm_api_provider}",
             body={
                 "customer_id": self.config.customer_id,
@@ -186,8 +133,8 @@ class RuleProcessor:
             cache=cache,
         )
         if not HttpStatus.is_success(reply.status_code):
-            logger.warning(
-                f"[CPA] Check failed: {reply.status_code}-{reply.text}",
+            self.log.warning(
+                f"Check failed: {reply.status_code}-{reply.text}",
             )
             return False
         return True
@@ -249,17 +196,17 @@ class RuleProcessor:
         proxy_type = llm_api_provider or self.config.llm_api_provider
 
         try:
-            reply = await self._call_control(
+            reply = await self._chat(
                 f"/process-input/{proxy_type}",
                 body=api_req_body,
             )
             if not HttpStatus.is_success(reply.status_code):
-                logger.warning(
-                    f"[CPA] Failed to call Control Plane input API: {reply.status_code}-{reply.text}",
+                self.log.warning(
+                    f"Failed to call Control Plane input API: {reply.status_code}-{reply.text}",
                 )
                 return None
 
-            logger.debug(f"[CPA] Replied {reply.text}")
+            self.log.debug(f"Replied {reply.text}")
             reply_body_json = json.loads(reply.text)
             body = reply_body_json["processed_input"]
             if isinstance(body, dict):
@@ -271,14 +218,14 @@ class RuleProcessor:
                 message=reply_body_json.get("message"),
             )
         except (JSONDecodeError, KeyError) as e:
-            logger.exception(
-                f"[CPA] Failed to parse Control Plane input API response",
+            self.log.exception(
+                f"Failed to parse Control Plane input API response",
                 exc_info=e,
             )
             return None
         except Exception as e:
-            logger.exception(
-                f"[CPA] Failed to call Control Plane input API",
+            self.log.exception(
+                f"Failed to call Control Plane input API",
                 exc_info=e,
             )
             return None
@@ -347,17 +294,17 @@ class RuleProcessor:
         proxy_type = llm_api_provider or self.config.llm_api_provider
 
         try:
-            reply = await self._call_control(
+            reply = await self._chat(
                 f"/process-output/{proxy_type}",
                 body=api_req_body,
             )
             if reply.status_code < 200 or reply.status_code > 299:
-                logger.warning(
-                    f"[CPA] Failed to call Control Plane output API: {reply.status_code}-{reply.text}",
+                self.log.warning(
+                    f"Failed to call Control Plane output API: {reply.status_code}-{reply.text}",
                 )
                 return None
 
-            logger.debug("[CPA] Replied %s", reply.text)
+            self.log.debug("Replied %s", reply.text)
             reply_body_json = json.loads(reply.text)
             body = reply_body_json["processed_output"]
             if isinstance(body, dict):
@@ -368,14 +315,14 @@ class RuleProcessor:
                 message=reply_body_json.get("message"),
             )
         except (JSONDecodeError, KeyError) as e:
-            logger.exception(
-                f"[CPA] Failed to parse Control Plane output API response",
+            self.log.exception(
+                f"Failed to parse Control Plane output API response",
                 exc_info=e,
             )
             return None
         except Exception as e:
-            logger.exception(
-                f"[CPA] Failed to call Control Plane output API",
+            self.log.exception(
+                f"Failed to call Control Plane output API",
                 exc_info=e,
             )
             return None
