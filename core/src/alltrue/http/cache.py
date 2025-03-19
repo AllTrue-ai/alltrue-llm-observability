@@ -12,6 +12,10 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+from ..utils.logfire import configure_logfire  # isort:skip
+
+logfire, logging = configure_logfire()  # isort:skip
+
 
 from hashlib import blake2b
 from typing import Callable, NamedTuple
@@ -31,10 +35,13 @@ def _get_http_timeout_config() -> httpx.Timeout:
 
     # Convert the timeout value to the appropriate format
     if timeout_value == "none":
+        logging.debug("HTTP_TIMEOUT is set to None, no timeout will be set")
         timeout = httpx.Timeout(None)  # No timeout
     elif timeout_value == "default":
+        logging.debug("HTTP_TIMEOUT is set to default, using default timeout")
         timeout = None  # Use httpx default timeout
     else:
+        logging.info(f"HTTP_TIMEOUT is set to {timeout_value}, using custom timeout")
         timeout = httpx.Timeout(float(timeout_value))  # Custom timeout in seconds
     return timeout
 
@@ -54,6 +61,7 @@ def _get_http_transport_config(
         # do not keep alive and reopen connection on every request to prevent event loop closed error
         # which is very likely to happen on pytesting async code
         # see https://github.com/encode/httpx/discussions/2959#discussioncomment-7665278
+        logging.debug("HTTP_KEEPALIVE is set to None, no keep alive will be set")
         return httpx.AsyncHTTPTransport(
             verify=verify,
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=0),
@@ -61,6 +69,7 @@ def _get_http_transport_config(
         )
     else:
         # use default keep alive settings
+        logging.debug("HTTP_KEEPALIVE is set to default, using default keep alive")
         return None
 
 
@@ -166,5 +175,6 @@ class CachableHttpClient(httpx.AsyncClient):
             ),
         )
 
+    @logfire.instrument()
     def register_cachable(self, cachable: CachableEndpoint):
         self._controller.register_cachable(cachable)

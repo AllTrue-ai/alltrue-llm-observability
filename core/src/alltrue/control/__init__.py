@@ -12,7 +12,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-import logging
+
+from ..utils.logfire import configure_logfire  # isort:skip
+
+logfire, logging = configure_logfire()  # isort:skip
+
 from abc import ABC
 
 import httpx
@@ -62,6 +66,7 @@ class APIClient(ABC):
             logging_level=logging_level,
         )
 
+    @logfire.instrument()
     async def _request(
         self,
         endpoint: str,

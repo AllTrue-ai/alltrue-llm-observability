@@ -13,10 +13,13 @@
 #  limitations under the License.
 #
 
+from ..utils.logfire import configure_logfire  # isort:skip
+
+logfire, logging = configure_logfire()  # isort:skip
+
 import asyncio
 import itertools
 import json
-import logging
 import re
 from typing import Any, Callable, Coroutine, NamedTuple
 
@@ -47,7 +50,7 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
             [str, HttpMethod, dict | None, float | None, bool],
             Coroutine[Any, Any, httpx.Response],
         ],
-        logger: logging.Logger,
+        logger: logging.Logger,  # type: ignore
         **kwargs,
     ):
         super().__init__(
@@ -57,6 +60,7 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
         self._key_func = lambda r: f"[{r.method}]{r.endpoint}"
         self.log = logger
 
+    @logfire.instrument()
     async def process_batch(self, batch: list[_Request]) -> list[httpx.Response] | None:
         self.log.info(f"Handling {len(batch)} requests in queue...")
         calls = []
@@ -136,6 +140,7 @@ class BatchRuleProcessor(RuleProcessor):
         )
 
     @override
+    @logfire.instrument()
     async def _chat(
         self,
         endpoint: str,
