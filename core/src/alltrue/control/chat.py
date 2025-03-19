@@ -12,6 +12,10 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+from ..utils.logfire import configure_logfire  # isort:skip
+
+logfire = configure_logfire()  # isort:skip
+
 import functools
 import json
 import logging
@@ -97,6 +101,7 @@ class RuleProcessor(APIClient):
             )
         )
 
+    @logfire.instrument("Calling control plane endpoint {endpoint=}")
     async def _chat(
         self,
         endpoint: str,
@@ -113,6 +118,7 @@ class RuleProcessor(APIClient):
             cache=cache,
         )
 
+    @logfire.instrument("Checking connection to control plane")
     async def check_connection(
         self,
         endpoint_identifier: str,
@@ -139,6 +145,7 @@ class RuleProcessor(APIClient):
             return False
         return True
 
+    @logfire.instrument()
     async def process_request(
         self,
         *,
@@ -230,6 +237,7 @@ class RuleProcessor(APIClient):
             )
             return None
 
+    @logfire.instrument()
     async def process_response(
         self,
         *,
