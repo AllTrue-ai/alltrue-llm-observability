@@ -21,8 +21,8 @@ import uuid
 
 import httpx
 import pytest
-from alltrue.control.batch import BatchRuleProcessor
-from alltrue.http import HttpStatus
+from alltrue_guardrails.control.batch import BatchRuleProcessor
+from alltrue_guardrails.http import HttpStatus
 
 
 @pytest.mark.httpx_mock(can_send_already_matched_responses=True)

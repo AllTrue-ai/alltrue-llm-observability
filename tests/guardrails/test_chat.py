@@ -20,7 +20,7 @@ import time
 import httpx
 import pytest
 
-from alltrue.guardrails.chat import ChatGuardrails
+from alltrue_guardrails.guardrails.chat import ChatGuardrails
 from tests import TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION, TESTS_DIR, init_servers
 
 

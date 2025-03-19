@@ -29,7 +29,7 @@ import httpx
 
 from ..http import HttpMethod, HttpStatus
 from ..http.cache import CachableEndpoint
-from . import APIClient
+from . import AlltrueAPIClient
 
 LLM_API_KEY_PATTERN = re.compile(r"(x-[\w\-]*key|[aA]uthorization)$")
 
@@ -74,7 +74,7 @@ class ProcessResult(NamedTuple):
     message: str | None = None
 
 
-class RuleProcessor(APIClient):
+class RuleProcessor(AlltrueAPIClient):
     def __init__(
         self,
         api_url: str | None = None,

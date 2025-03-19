@@ -21,15 +21,20 @@ import logging
 from abc import ABC
 
 import httpx
-from alltrue.control._internal.token import TokenRetriever
-from alltrue.http import HttpMethod, HttpStatus
-from alltrue.http.cache import CachableHttpClient
-from alltrue.utils.config import AlltrueConfig
+
+from ..http import HttpMethod, HttpStatus
+from ..http.cache import CachableHttpClient
+from ..utils.config import AlltrueConfig
+from ._internal.token import TokenRetriever
 
 MAX_TOKEN_REFRESH_RETRIES = 5
 
 
-class APIClient(ABC):
+class AlltrueAPIClient(ABC):
+    """
+    Client to interact with Alltrue APIs
+    """
+
     def __init__(
         self,
         api_url: str | None = None,

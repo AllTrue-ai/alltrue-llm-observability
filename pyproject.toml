@@ -3,13 +3,13 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project]
-name = "alltrue-llm-observability"
+name = "alltrue-guardrails"
 readme = "README.md"
 dynamic = ["version"]
 authors = [
     {name = "AllTrue.ai INC", email = "ury@alltrue.ai"}
 ]
-description = "LLM Observability SDK for AllTrue.ai API"
+description = "Alltrue Guardrails SDK"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -30,7 +30,7 @@ observers = [
     "wrapt~=1.17.2",
 ]
 openai-observers = [
-    "alltrue-llm-observability[observers]",
+    "alltrue-guardrails[observers]",
     "openai~=1.63.0",
 ]
 testing = [
@@ -43,10 +43,10 @@ dev = [
     "pre-commit",
 ]
 full = [
-    "alltrue-llm-observability-core[testing] @ file:///${PROJECT_ROOT}/core",
-    "alltrue-llm-observability[openai-observers]",
-    "alltrue-llm-observability[testing]",
-    "alltrue-llm-observability[dev]",
+    "alltrue-guardrails-core[testing] @ file:///${PROJECT_ROOT}/core",
+    "alltrue-guardrails[openai-observers]",
+    "alltrue-guardrails[testing]",
+    "alltrue-guardrails[dev]",
 ]
 
 [tool.pdm.version]
@@ -54,7 +54,7 @@ source = "file"
 path = "src/version.py"
 
 [tool.pdm.build]
-includes = ["src/alltrue"]
+includes = ["src/alltrue_guardrails", "src/py.typed"]
 custom-hook = "src/build.py"
 excludes = ["**/tests/*"]
 

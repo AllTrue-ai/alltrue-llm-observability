@@ -25,10 +25,11 @@ import re
 from typing import Any, Callable, Coroutine, NamedTuple
 
 import httpx
-from alltrue.control.chat import RuleProcessor
-from alltrue.http import HttpMethod, HttpStatus
 from async_batcher.batcher import AsyncBatcher
 from typing_extensions import override
+
+from ..http import HttpMethod, HttpStatus
+from .chat import RuleProcessor
 
 _DEFAULT_BATCH_TIMEOUT = 3.0
 

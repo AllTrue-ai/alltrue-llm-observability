@@ -21,14 +21,14 @@ from abc import ABC
 from datetime import UTC, datetime
 from typing import Any, Callable, TypeVar
 
-from alltrue.control.batch import BatchRuleProcessor
-from alltrue.control.chat import RuleProcessor
-from alltrue.http import HttpStatus
-from alltrue.utils.config import get_value
+from alltrue_guardrails.control.batch import BatchRuleProcessor
+from alltrue_guardrails.control.chat import RuleProcessor
+from alltrue_guardrails.http import HttpStatus
+from alltrue_guardrails.utils.config import get_value
 from pydantic import BaseModel, ConfigDict
 
-from alltrue.event.loop import ThreadExecutor
-from alltrue.guardrails import _msg_key
+from alltrue_guardrails.event.loop import ThreadExecutor
+from alltrue_guardrails.guardrails import _msg_key
 
 I = TypeVar("I")
 O = TypeVar("O")

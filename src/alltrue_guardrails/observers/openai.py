@@ -17,13 +17,13 @@ import json
 from typing import Any, cast
 
 import httpx
-from alltrue.control.chat import ProcessResult
-from alltrue.http import HttpStatus
+from alltrue_guardrails.control.chat import ProcessResult
+from alltrue_guardrails.http import HttpStatus
 from openai import PermissionDeniedError
 from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
-from alltrue.observers import (
+from alltrue_guardrails.observers import (
     BaseObserver,
     EndpointRequest,
     Observable,
