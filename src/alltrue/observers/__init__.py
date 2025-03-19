@@ -142,7 +142,7 @@ class BaseObserver:
             if asyncio.get_running_loop() is not None:
                 self._executor = asyncio
         except RuntimeError:
-            self._log.info("[OBSERVER] No running loop.")
+            self._log.info("No running loop.")
             self._executor = ThreadExecutor()  # type: ignore
 
     def _resolve_endpoint_info(self, **kwargs) -> EndpointInfo:
@@ -202,7 +202,7 @@ class BaseObserver:
         if self._blocking:
             return await request_process
         else:
-            self._log.info(f"[OBSERVER] {rid}: observing {rtype} in background...")
+            self._log.info(f"{rid}: observing {rtype} in background...")
             self._executor.ensure_future(  # type: ignore
                 request_process,
             )
@@ -214,11 +214,11 @@ class BaseObserver:
             call_args = ObservedArgs(args=args, kwargs=kwargs)
             request = self._before_input_process(instance, call_args)
 
-            self._log.debug(f"[OBSERVER] {rid}: {request}")
+            self._log.debug(f"{rid}: {request}")
             request_url = request.full_url
             request_body = request.payload
 
-            self._log.debug(f"[OBSERVER] {rid}: observing input prompts...")
+            self._log.debug(f"{rid}: observing input prompts...")
             request_process_result = await self._handle_request(
                 rtype="input",
                 rid=rid,
@@ -240,12 +240,12 @@ class BaseObserver:
                     call_args,
                 )
 
-            self._log.info(f"[OBSERVER] {rid}: forwarding prompts to API backend...")
+            self._log.info(f"{rid}: forwarding prompts to API backend...")
             result = wrapped(*args, **kwargs)
             if asyncio.iscoroutine(result):
                 result = await result
 
-            self._log.debug(f"[OBSERVER] {rid}: observing output completions...")
+            self._log.debug(f"{rid}: observing output completions...")
             response_process_result = await self._handle_request(
                 rtype="output",
                 rid=rid,
@@ -299,7 +299,7 @@ class BaseObserver:
                 _connection_keep_alive="none",
             )
         else:
-            self._log.info("[OBSERVER] Traces will be processed in batches")
+            self._log.info("Traces will be processed in batches")
             self._rule_processor = BatchRuleProcessor(
                 llm_api_provider=self._config.llm_api_provider,
                 customer_id=self._config.customer_id,

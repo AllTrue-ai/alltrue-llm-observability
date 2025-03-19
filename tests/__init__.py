@@ -40,6 +40,9 @@ def init_servers(
     target_url: str | None = None,
     proxy_args: list[str] = [],
 ) -> tuple[Popen, int, Popen, int]:
+    """
+    Launching a mock Alltrue API server as well as a LLM API server for further testing.
+    """
     Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
     for p in Path(LOG_DIR).glob(f"test_*.txt"):
         p.unlink()

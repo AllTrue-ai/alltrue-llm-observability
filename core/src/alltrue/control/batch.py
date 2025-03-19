@@ -26,8 +26,6 @@ from alltrue.http import HttpMethod, HttpStatus
 from async_batcher.batcher import AsyncBatcher
 from typing_extensions import override
 
-logger = logging.getLogger(__name__)
-
 _DEFAULT_BATCH_TIMEOUT = 3.0
 
 
@@ -49,6 +47,7 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
             [str, HttpMethod, dict | None, float | None, bool],
             Coroutine[Any, Any, httpx.Response],
         ],
+        logger: logging.Logger,
         **kwargs,
     ):
         super().__init__(
@@ -56,9 +55,10 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
         )
         self._func = func
         self._key_func = lambda r: f"[{r.method}]{r.endpoint}"
+        self.log = logger
 
     async def process_batch(self, batch: list[_Request]) -> list[httpx.Response] | None:
-        logger.info(f"[BAT] Handling {len(batch)} requests in queue...")
+        self.log.info(f"Handling {len(batch)} requests in queue...")
         calls = []
         for key, requests in itertools.groupby(
             sorted(batch, key=self._key_func), key=self._key_func
@@ -72,8 +72,8 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
                 request.body
                 for request in filter(lambda r: r.body is not None, requests)
             ]
-            logger.info(
-                f"[BAT] Calling {batch_endpoint} with {len(batch_body)}/{len(batch)} of overall requests"
+            self.log.info(
+                f"Calling {batch_endpoint} with {len(batch_body)}/{len(batch)} of overall requests"
             )
             calls.append(
                 self._func(
@@ -91,11 +91,11 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
         for response in responses:
             match response:
                 case exc if isinstance(exc, Exception):
-                    logger.warning("[BAT] Exception occurred", exc_info=exc)
+                    self.log.warning("Exception occurred", exc_info=exc)
                 case res if isinstance(res, httpx.Response):
                     if HttpStatus.is_error(res.status_code):
-                        logger.warning(
-                            f"[BAT] Request batch API unsuccessful: {res.status_code}:{res.text}"
+                        self.log.warning(
+                            f"Request batch API unsuccessful: {res.status_code}:{res.text}"
                         )
         # no need to handle other results
         return None
@@ -112,28 +112,31 @@ class BatchRuleProcessor(RuleProcessor):
         api_key: str | None = None,
         customer_id: str | None = None,
         llm_api_provider: str | None = None,
+        logging_level: int | str = logging.INFO,
         _connection_keep_alive: str | None = None,
         batch_size: int = 5,
         queue_time: float = 5.0,
         **kwargs,
     ):
         super().__init__(
-            api_url,
-            api_key,
-            customer_id,
-            llm_api_provider,
-            _connection_keep_alive,
+            api_url=api_url,
+            api_key=api_key,
+            customer_id=customer_id,
+            llm_api_provider=llm_api_provider,
+            logging_level=logging_level,
+            _connection_keep_alive=_connection_keep_alive,
             **kwargs,
         )
         self._batcher = _BatchCaller(
-            func=super()._call_control,
+            func=super()._chat,
+            logger=self.log,
             concurrency=3,
             max_batch_size=batch_size,
             max_queue_time=queue_time,
         )
 
     @override
-    async def _call_control(
+    async def _chat(
         self,
         endpoint: str,
         method: HttpMethod = "POST",
@@ -144,7 +147,7 @@ class BatchRuleProcessor(RuleProcessor):
         matched = re.search(r"/process-(input|output)/.*", endpoint)
         endpoint_type = matched.group(1) if matched else None
         if endpoint_type is not None:
-            logger.info(f"[BAT] Batching {endpoint} request...")
+            self.log.info(f"Batching {endpoint} request...")
             t = asyncio.ensure_future(
                 self._batcher.process(
                     _Request(endpoint=endpoint, method=method, body=body)
@@ -166,7 +169,7 @@ class BatchRuleProcessor(RuleProcessor):
                 ),
             )
         else:
-            return await super()._call_control(
+            return await super()._chat(
                 endpoint=endpoint,
                 method=method,
                 body=body,
@@ -181,7 +184,7 @@ class BatchRuleProcessor(RuleProcessor):
 
     @override
     async def close(self, timeout: float | None = None) -> None:
-        logger.info(f"[BAT] Closing...")
+        self.log.info(f"Closing...")
         try:
             await asyncio.wait_for(
                 asyncio.gather(
@@ -191,7 +194,7 @@ class BatchRuleProcessor(RuleProcessor):
                 timeout=timeout,
             )
         except TimeoutError:
-            logger.warning("[BAT] Batch closing timed out, some events might be lost")
+            self.log.warning("Batch closing timed out, some events might be lost")
 
     @classmethod
     def clone(

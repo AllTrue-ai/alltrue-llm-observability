@@ -12,7 +12,109 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
+from abc import ABC
 
-import re
+import httpx
+from alltrue.control._internal.token import TokenRetriever
+from alltrue.http import HttpMethod, HttpStatus
+from alltrue.http.cache import CachableHttpClient
+from alltrue.utils.config import AlltrueConfig
 
-LLM_API_KEY_PATTERN = re.compile(r"(x-[\w\-]*key|[aA]uthorization)$")
+MAX_TOKEN_REFRESH_RETRIES = 5
+
+
+class APIClient(ABC):
+    def __init__(
+        self,
+        api_url: str | None = None,
+        api_key: str | None = None,
+        customer_id: str | None = None,
+        llm_api_provider: str | None = None,
+        logging_level: int | str = logging.INFO,
+        _connection_keep_alive: str | None = None,
+        **kwargs,
+    ):
+        self.log = logging.getLogger("alltrue.api.client")
+        self.log.setLevel(logging_level)
+
+        _config = kwargs.pop("_config", None)
+        if isinstance(_config, AlltrueConfig):
+            self.config = _config
+        else:
+            self.config = AlltrueConfig(
+                api_url=api_url,
+                api_key=api_key,
+                customer_id=customer_id,
+                llm_api_provider=llm_api_provider,
+            )
+        _client = kwargs.pop("_client", None)
+        if isinstance(_client, CachableHttpClient):
+            self._client = _client
+        else:
+            self._client = CachableHttpClient(
+                base_url=self.config.api_url,  # type: ignore
+                _keep_alive=_connection_keep_alive,
+            )
+        self._token_manager = TokenRetriever(
+            config=self.config,
+            client=self._client,
+            logging_level=logging_level,
+        )
+
+    async def _request(
+        self,
+        endpoint: str,
+        method: HttpMethod = "POST",
+        body: dict | None = None,
+        timeout: float | None = None,
+        cache: bool = False,
+    ) -> httpx.Response:
+        """
+        Call the Control Plane API , retrying if we get a 403 Forbidden in case token has expired
+        :param endpoint: The chat api endpoint
+        :param method: The HTTP method to use
+        :param body: The original body of the request
+        :param timeout: timeout setting per request level if given
+        :param cache: Should cache the response when sufficient
+        :return: HTTPX reply
+        """
+        token_error_count = 0
+        while token_error_count < MAX_TOKEN_REFRESH_RETRIES:
+            token = await self._token_manager.get_token(
+                refresh=token_error_count > 0,
+            )
+            if token:
+                self.log.debug(
+                    f"{method} to control\n endpoint: {endpoint}\n token: {token}\n body: {body}\n"
+                )
+                reply = await self._client.request(
+                    method=method,
+                    url=endpoint,
+                    json=body,
+                    headers={
+                        "content-type": "application/json",
+                        "Authorization": f"Bearer {token}",
+                    },
+                    timeout=timeout,
+                    extensions={"force_cache": True}
+                    if cache
+                    else {"cache_disabled": True},
+                )
+
+                if not HttpStatus.is_unauthorized(reply.status_code):
+                    return reply
+
+            token_error_count += 1
+            self.log.warning(
+                "Auth failed with Control Plane API,"
+                f"retrying {token_error_count} out of {MAX_TOKEN_REFRESH_RETRIES}"
+            )
+        else:
+            self.log.error(
+                "Failed too many times for retrieving a valid token. Giving up."
+            )
+            return httpx.Response(
+                status_code=HttpStatus.UNAUTHORIZED,
+                content=f"Too many token refresh errors. Giving up.",
+            )

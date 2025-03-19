@@ -83,6 +83,11 @@ class _GuardTrailHooks(BaseModel):
 
 
 class ChatGuardian(ABC):
+    """
+    An abstract class of generic LLM chat message guardian.
+    Two async methods provided by this class for input/output message protections and the users can determine whether to wait on the result.
+    """
+
     def __init__(
         self,
         alltrue_api_url: str | None = None,
@@ -90,16 +95,23 @@ class ChatGuardian(ABC):
         alltrue_customer_id: str | None = None,
         alltrue_endpoint_identifier: str | None = None,
         logging_level: int | str = logging.INFO,
-        _api_provider: str = "openai",
+        _llm_api_provider: str = "any",
         **kwargs,
     ):
-        self._log = logging.getLogger(__name__)
+        """
+        :param alltrue_api_url: Alltrue API base URL, could as well be loaded via envar <ALLTRUE_API_URL>. Default to https://prod.alltrue.com
+        :param alltrue_api_key: Alltrue API key, could as well be loaded via envar <ALLTRUE_API_KEY>.
+        :param alltrue_customer_id: the customer ID registered in Alltrue API, could as well be loaded via envar <ALLTRUE_CUSTOMER_ID>
+        :param alltrue_endpoint_identifier: the endpoint identifier defined in Alltrue API for LLM validation/observability could as well be loaded via envar <ALLTRUE_ENDPOINT_IDENTIFIER>
+        :param logging_level: logging level to use
+        """
+        self._log = logging.getLogger("alltrue.guardrails")
         self._log.setLevel(logging_level)
         self._endpoint_identifier = alltrue_endpoint_identifier or get_value(
             name="endpoint_identifier"
         )
         self._guard_processor = RuleProcessor(
-            llm_api_provider=_api_provider,
+            llm_api_provider=_llm_api_provider,
             customer_id=alltrue_customer_id,
             api_url=alltrue_api_url,
             api_key=alltrue_api_key,
@@ -137,6 +149,9 @@ class ChatGuardian(ABC):
         return req_id, prompts  # type: ignore
 
     async def guard_input(self, prompt_messages: list[Guardable]) -> list[Guardable]:
+        """
+        Validate the given prompt messages then return back the suggested ones, or GuardrailsException when critical violations detected.
+        """
         (req_id, prompt) = self._cache_prompt(prompt_messages)
         processed_result = await self._guard_processor.process_request(
             body=self._prompt_hooks.before(prompt),
@@ -162,6 +177,9 @@ class ChatGuardian(ABC):
     async def guard_output(
         self, prompt_messages: list[Guardable], completion_messages: list[Guardable]
     ) -> list[Guardable]:
+        """
+        Validate the given completion messages alongside the input, then return back the suggested ones, or GuardrailsException when critical violations detected.
+        """
         (req_id, prompt) = self._pop_prompt(prompt_messages)
         processed_result = await self._guard_processor.process_response(
             body=self._completion_hooks.before(completion_messages),
@@ -186,7 +204,10 @@ class ChatGuardian(ABC):
 
 class ChatGuardrails(ChatGuardian):
     """
-    Lite version of Guardrails for string messages
+    Input/output message guard/observation for LLM API calls.
+
+    Two types of action provided by this class --
+    * guard_input/guard_output: blocking
     """
 
     def __init__(
@@ -206,6 +227,7 @@ class ChatGuardrails(ChatGuardian):
             alltrue_customer_id=alltrue_customer_id,
             alltrue_endpoint_identifier=alltrue_endpoint_identifier,
             logging_level=logging_level,
+            _llm_api_provider="openai",
             **kwargs,
         )
         self.register_prompt_hooks(
@@ -255,7 +277,7 @@ class ChatGuardrails(ChatGuardian):
             self._observing_processor = self._guard_processor
             self._batch_control = None
         else:
-            self._log.info("[GUARDRAILS] Traces will be processed in batches")
+            self._log.info("Traces will be processed in batches")
             self._observing_processor = BatchRuleProcessor.clone(
                 original=self._guard_processor,
                 batch_size=batch_size,
@@ -266,7 +288,7 @@ class ChatGuardrails(ChatGuardian):
             if asyncio.get_running_loop() is not None:
                 self._executor = asyncio
         except RuntimeError:
-            self._log.info("[GUARDRAILS] No running loop.")
+            self._log.info("No running loop.")
             self._executor = ThreadExecutor()  # type: ignore
 
     def observe_input(self, prompt_messages: list[Guardable]) -> None:
