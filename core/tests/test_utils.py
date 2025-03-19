@@ -167,3 +167,15 @@ def test_parse_and_compose():
     assert parsed.endpoint_identifier == "random"
 
     assert parsed.compose_path() == path
+
+
+def test_parse_no_path():
+    path = "/endpoint/random/base-url/https://test-customer.openai.azure.com/proxy-type/azure-openai"
+
+    parsed = EndpointInfo.parse_from_path(path)
+    assert parsed.path == ""
+    assert parsed.base_url == "https://test-customer.openai.azure.com"
+    assert parsed.proxy_type == "azure-openai"
+    assert parsed.endpoint_identifier == "random"
+
+    assert parsed.compose_path() == path
