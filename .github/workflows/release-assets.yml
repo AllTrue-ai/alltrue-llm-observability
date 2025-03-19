@@ -1,6 +1,8 @@
 name: upload assets to release
 
-on: push
+on:
+  release:
+    types: [ created ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
