@@ -13,6 +13,10 @@
 #  limitations under the License.
 #
 
+from .logfire import configure_logfire  # isort:skip
+
+logfire = configure_logfire()  # isort:skip
+
 import logging
 import re
 from typing import Any, MutableMapping, TypeVar
@@ -43,6 +47,7 @@ class EndpointInfo(BaseModel):
         None, description="Custom proxy type specified by the caller in base URL."
     )
 
+    @logfire.instrument()
     def compose_path(self) -> str:
         _url = "" if self.path.strip() == "/" else self.path.strip().removesuffix("/")
         if self.endpoint_identifier:
@@ -51,8 +56,10 @@ class EndpointInfo(BaseModel):
             _url += f"/base-url/{self.base_url}"
         if self.proxy_type:
             _url += f"/proxy-type/{self.proxy_type}"
+        logging.debug(f"composed path: {_url}")
         return _url
 
+    @logfire.instrument()
     def compose_headers(self, headers: HEADERS) -> HEADERS:
         if self.endpoint_identifier:
             headers[f"{_get_header_key('endpoint_identifier')}"] = str(
@@ -64,6 +71,7 @@ class EndpointInfo(BaseModel):
             headers[f"{_get_header_key('proxy_type')}"] = str(self.proxy_type)
         return headers
 
+    @logfire.instrument()
     def merge(self, other: "EndpointInfo") -> "EndpointInfo":
         """
         Merge another PathElements into this one to update any of the existing attribute with None value.
@@ -75,6 +83,7 @@ class EndpointInfo(BaseModel):
         return self
 
     @classmethod
+    @logfire.instrument()
     def parse_from_path(cls, path: str) -> "EndpointInfo":
         """
         Finds the endpoint name and base URL in the given path. Returns an EndpointInfo
@@ -118,12 +127,16 @@ class EndpointInfo(BaseModel):
                     base_url_override_scheme,
                     base_url_override_url,
                 ) = base_url_override.split(":/", 1)
-                (
-                    base_url_override_root,
-                    base_url_override_path,
-                ) = base_url_override_url.removeprefix("/").split("/", 1)
-                base_url = f"{base_url_override_scheme}://{base_url_override_root}"
-                remaining_path = f"{prefix}/{base_url_override_path}"
+                base_url_override_url = base_url_override_url.removeprefix("/")
+                if "/" in base_url_override:
+                    (
+                        base_url_override_root,
+                        base_url_override_path,
+                    ) = base_url_override_url.split("/", 1)
+                    base_url = f"{base_url_override_scheme}://{base_url_override_root}"
+                    remaining_path = f"{prefix}/{base_url_override_path}"
+                else:
+                    base_url = f"{base_url_override_scheme}://{base_url_override}"
             else:
                 # Split the remaining path after the base URL if present
                 if base_url and "/" in base_url:
@@ -162,6 +175,7 @@ class EndpointInfo(BaseModel):
         )
 
     @classmethod
+    @logfire.instrument()
     def parse_from_headers(cls, headers: HEADERS) -> "EndpointInfo":
         return EndpointInfo(
             path="",

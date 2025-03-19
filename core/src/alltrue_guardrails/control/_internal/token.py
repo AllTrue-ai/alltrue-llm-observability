@@ -13,6 +13,10 @@
 #  limitations under the License.
 #
 
+from ...utils.logfire import configure_logfire  # isort:skip
+
+logfire = configure_logfire()  # isort:skip
+
 import json
 import logging
 
@@ -55,6 +59,7 @@ class TokenRetriever:
             )
         )
 
+    @logfire.instrument()
     async def get_token(
         self,
         refresh: bool = False,
