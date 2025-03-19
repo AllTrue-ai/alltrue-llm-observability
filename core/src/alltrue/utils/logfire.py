@@ -38,11 +38,18 @@ class LogfireMock:
         return lambda *args, **kwargs: None
 
 
+INITIALIZED_LOGFIRE = None
+
+
 def configure_logfire() -> Any:
     """
     Configure logfire for logging.
     Logfire is an optional dependency which may not be installed, in which case we mock it to prevent errors.
     """
+    global INITIALIZED_LOGFIRE
+    if INITIALIZED_LOGFIRE is not None:
+        return INITIALIZED_LOGFIRE
+
     if importlib.util.find_spec("logfire") is not None:
         import logfire
 
@@ -53,7 +60,9 @@ def configure_logfire() -> Any:
         import logging
 
         logging.basicConfig(handlers=[logfire.LogfireLoggingHandler()])
-        return logfire
+        INITIALIZED_LOGFIRE = logfire
     else:
         logfire = LogfireMock()
-        return logfire
+        INITIALIZED_LOGFIRE = logfire
+
+    return INITIALIZED_LOGFIRE
