@@ -14,7 +14,7 @@
 #
 
 import pytest
-from alltrue.utils.path import EndpointInfo
+from alltrue_guardrails.utils.path import EndpointInfo
 
 
 @pytest.mark.parametrize(

@@ -17,9 +17,10 @@ import json
 import logging
 
 import httpcore
-from alltrue.http import HttpStatus
-from alltrue.http.cache import CachableEndpoint, CachableHttpClient
-from alltrue.utils.config import AlltrueConfig
+
+from ...http import HttpStatus
+from ...http.cache import CachableEndpoint, CachableHttpClient
+from ...utils.config import AlltrueConfig
 
 _TOKEN_ENDPOINT = "/v1/auth/issue-jwt-token"
 

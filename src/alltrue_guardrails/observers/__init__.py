@@ -19,14 +19,14 @@ import uuid
 from importlib import import_module
 from typing import Any, Callable, Coroutine
 
-from alltrue.control.batch import BatchRuleProcessor
-from alltrue.control.chat import ProcessResult, RuleProcessor
-from alltrue.utils.config import AlltrueConfig, get_value
-from alltrue.utils.path import EndpointInfo
+from alltrue_guardrails.control.batch import BatchRuleProcessor
+from alltrue_guardrails.control.chat import ProcessResult, RuleProcessor
+from alltrue_guardrails.utils.config import AlltrueConfig, get_value
+from alltrue_guardrails.utils.path import EndpointInfo
 from typing_extensions import Literal, NamedTuple
 from wrapt import ObjectProxy, wrap_function_wrapper
 
-from alltrue.event.loop import ThreadExecutor
+from alltrue_guardrails.event.loop import ThreadExecutor
 
 
 def unwrap(obj: object, attr: str):

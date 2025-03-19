@@ -18,9 +18,10 @@ import re
 from typing import Any, MutableMapping, TypeVar
 from urllib.parse import urlparse
 
-from alltrue.utils.config import get_or_default
 from pydantic import BaseModel, Field
 from typing_extensions import deprecated
+
+from .config import get_or_default
 
 HEADERS = TypeVar("HEADERS", bound=MutableMapping)
 

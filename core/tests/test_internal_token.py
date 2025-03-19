@@ -17,9 +17,9 @@ import time
 
 import httpx
 import pytest
-from alltrue.control._internal.token import TokenRetriever
-from alltrue.http.cache import CachableHttpClient
-from alltrue.utils.config import AlltrueConfig
+from alltrue_guardrails.control._internal.token import TokenRetriever
+from alltrue_guardrails.http.cache import CachableHttpClient
+from alltrue_guardrails.utils.config import AlltrueConfig
 
 
 @pytest.mark.asyncio

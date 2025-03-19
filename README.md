@@ -1,6 +1,6 @@
-# Alltrue LLM Observability SDK
+# Alltrue Guardrails
 
-Alltrue LLM Observability SDK provides monitoring, observability, and guardrails for Large Language Model interactions. It allows you to track, modify, and secure your LLM API calls with minimal code changes to your existing applications.
+Alltrue Guardrails provides monitoring, observability, and guardrails for Large Language Model interactions. It allows you to track, modify, and secure your LLM API calls with minimal code changes to your existing applications.
 
 ## Table of Contents
 - [Installation](#installation)
@@ -50,7 +50,7 @@ Guardrails provide validation and filtering for LLM inputs and outputs. They can
 #### 1. Active Guardrails - Validating Messages
 
 ```python
-from alltrue.guardrails.chat import ChatGuardrails, GuardrailsException
+from alltrue_guardrails.guardrails.chat import ChatGuardrails, GuardrailsException
 import httpx
 import sys
 
@@ -106,7 +106,7 @@ except GuardrailsException:
 #### 2. Passive Observation - Monitoring Without Validation
 
 ```python
-from alltrue.guardrails.chat import ChatGuardrails, GuardableMessage
+from alltrue_guardrails.guardrails.chat import ChatGuardrails, GuardableMessage
 import httpx
 
 # Initialize guardrails
@@ -169,7 +169,7 @@ Observers provide automated monitoring by intercepting LLM client calls directly
 #### OpenAI Client Observer
 
 ```python
-from alltrue.observers.openai import OpenAIObserver
+from alltrue_guardrails.observers.openai import OpenAIObserver
 from openai import OpenAI
 
 # Initialize observer

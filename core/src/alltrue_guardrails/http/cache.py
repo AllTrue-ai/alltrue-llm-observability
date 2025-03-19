@@ -23,10 +23,11 @@ from typing import Callable, NamedTuple
 
 import hishel
 import httpx
-from alltrue.http import HttpMethod
-from alltrue.utils.config import get_or_default
 from httpcore import Request, Response
 from typing_extensions import override
+
+from ..utils.config import get_or_default
+from . import HttpMethod
 
 
 def _get_http_timeout_config() -> httpx.Timeout:
