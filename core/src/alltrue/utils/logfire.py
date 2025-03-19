@@ -12,7 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import importlib.util
 from contextlib import contextmanager
+from typing import Any
 
 
 class LogfireMock:
@@ -36,12 +38,12 @@ class LogfireMock:
         return lambda *args, **kwargs: None
 
 
-def configure_logfire() -> tuple["module", "logging.Logger"]:  # type: ignore
+def configure_logfire() -> Any:
     """
     Configure logfire for logging.
     Logfire is an optional dependency which may not be installed, in which case we mock it to prevent errors.
     """
-    try:
+    if importlib.util.find_spec("logfire") is not None:
         import logfire
 
         logfire.configure(
@@ -51,11 +53,7 @@ def configure_logfire() -> tuple["module", "logging.Logger"]:  # type: ignore
         import logging
 
         logging.basicConfig(handlers=[logfire.LogfireLoggingHandler()])
-        return logfire, logging
-    except ImportError:
-        pass
-
+        return logfire
+    else:
         logfire = LogfireMock()
-        import logging
-
-        return logfire, logging
+        return logfire

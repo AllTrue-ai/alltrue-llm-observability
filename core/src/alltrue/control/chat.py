@@ -14,10 +14,11 @@
 #
 from ..utils.logfire import configure_logfire  # isort:skip
 
-logfire, logging = configure_logfire()  # isort:skip
+logfire = configure_logfire()  # isort:skip
 
 import functools
 import json
+import logging
 import re
 from datetime import UTC, datetime
 from json import JSONDecodeError
@@ -49,7 +50,7 @@ def _parse_url(
 
 
 def _gen_cache_key(
-    request: httpcore.Request, body: bytes = b"", logger: logging.Logger | None = None  # type: ignore
+    request: httpcore.Request, body: bytes = b"", logger: logging.Logger | None = None
 ) -> bytes:
     """
     Cache key composed by api key and url path

@@ -15,8 +15,9 @@
 
 from ..utils.logfire import configure_logfire  # isort:skip
 
-logfire, logging = configure_logfire()  # isort:skip
+logfire = configure_logfire()  # isort:skip
 
+import logging
 from abc import ABC
 
 import httpx

@@ -15,11 +15,12 @@
 
 from ..utils.logfire import configure_logfire  # isort:skip
 
-logfire, logging = configure_logfire()  # isort:skip
+logfire = configure_logfire()  # isort:skip
 
 import asyncio
 import itertools
 import json
+import logging
 import re
 from typing import Any, Callable, Coroutine, NamedTuple
 
@@ -50,7 +51,7 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
             [str, HttpMethod, dict | None, float | None, bool],
             Coroutine[Any, Any, httpx.Response],
         ],
-        logger: logging.Logger,  # type: ignore
+        logger: logging.Logger,
         **kwargs,
     ):
         super().__init__(
