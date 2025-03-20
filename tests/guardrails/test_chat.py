@@ -53,8 +53,8 @@ async def guardrails(openai_test_ports, test_endpoint_identifier):
         alltrue_api_key="dummy-app-key",
         alltrue_endpoint_identifier=test_endpoint_identifier,
         alltrue_customer_id="customer-id",
-        batch_size=5,
-        queue_time=0.25,
+        _batch_size=4,
+        _queue_time=0.25,
     )
     yield _guardrails
     os.environ["CONFIG_HTTP_KEEPALIVE"] = "default"

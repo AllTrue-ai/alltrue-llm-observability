@@ -12,7 +12,10 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
 import importlib.util
+import logging
+import time
 from contextlib import contextmanager
 from typing import Any
 
@@ -21,24 +24,51 @@ class LogfireMock:
     """Mock version of logfire that preserves function behavior when used as a decorator (logfire.instrument),
     context manager (logfire.span) or methods (logfire.info)"""
 
-    @staticmethod
-    def instrument(*args, **kwargs):
-        def decorator(func):
-            return func  # Return the function unmodified
+    def __init__(self):
+        self.log = logging.getLogger("logfire")
+        if not getattr(self.log, "_patched", False):
+            import re
 
-        return decorator
+            _p = r"(\s+\([\w\{\}\s\=\(\),\"\:\[\]\'\-\#\.\/\<\>\\\?\*\%]+\s+)(\d+\.\d+s)?\s+\|"
+            _r = r" | \2"
+            _log = self.log.log
+            self.log.log = lambda l, m, *args, **kwargs: _log(
+                l,
+                f"{re.sub(_p, _r, m)}".replace("<>|", "<> | "),
+                *args,
+                **kwargs,
+            )
+            setattr(self.log, "_patched", True)
+
+    def instrument(self, *args0, **kwargs0):
+        from logfunc import logf
+
+        return logf(
+            level=logging.DEBUG,
+            single_msg=True,
+            identifier=True,
+            log_exec_time=True,
+            log_args=False,
+            log_return=False,
+            use_logger=self.log,
+        )
 
     # context manager "span"
     @contextmanager
     def span(self, *args, **kwargs):
+        ts = time.process_time()
         yield None
+        elapsed = time.process_time() - ts
+        self.log.info(f"<> | {args[0] if len(args) > 0 else ''} | {elapsed:.4f}s |")
 
     def __getattr__(self, name):
         """Return a no-op function for any other logfire methods."""
+        if hasattr(self.log, name):
+            return getattr(self.log, name)
         return lambda *args, **kwargs: None
 
 
-INITIALIZED_LOGFIRE = None
+_LOGFIRE = None
 
 
 def configure_logfire() -> Any:
@@ -46,9 +76,9 @@ def configure_logfire() -> Any:
     Configure logfire for logging.
     Logfire is an optional dependency which may not be installed, in which case we mock it to prevent errors.
     """
-    global INITIALIZED_LOGFIRE
-    if INITIALIZED_LOGFIRE is not None:
-        return INITIALIZED_LOGFIRE
+    global _LOGFIRE
+    if _LOGFIRE is not None:
+        return _LOGFIRE
 
     if importlib.util.find_spec("logfire") is not None:
         import logfire
@@ -60,9 +90,8 @@ def configure_logfire() -> Any:
         import logging
 
         logging.basicConfig(handlers=[logfire.LogfireLoggingHandler()])
-        INITIALIZED_LOGFIRE = logfire
+        _LOGFIRE = logfire
     else:
-        logfire = LogfireMock()
-        INITIALIZED_LOGFIRE = logfire
+        _LOGFIRE = LogfireMock()
 
-    return INITIALIZED_LOGFIRE
+    return _LOGFIRE

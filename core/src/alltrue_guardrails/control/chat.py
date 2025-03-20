@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
 from ..utils.logfire import configure_logfire  # isort:skip
 
 logfire = configure_logfire()  # isort:skip
@@ -82,7 +83,6 @@ class RuleProcessor(AlltrueAPIClient):
         customer_id: str | None = None,
         llm_api_provider: str | None = None,
         logging_level: int | str = logging.INFO,
-        _connection_keep_alive: str | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -97,7 +97,10 @@ class RuleProcessor(AlltrueAPIClient):
             CachableEndpoint(
                 path="/v1/llm-firewall/chat/check-connection/",
                 methods=["POST"],
-                key_generator=functools.partial(_gen_cache_key, logger=self.log),
+                key_generator=functools.partial(
+                    _gen_cache_key,
+                    logger=self.log,
+                ),
             )
         )
 
