@@ -55,8 +55,6 @@ def _get_api_provider():
     match _provider or get_value(name="proxy_type", prefix="CONFIG"):
         case "gemini":
             return "google"
-        case _ibm_proxy if _ibm_proxy.startswith("ibmwatsonx"):
-            return "ibmwatsonx"
         case others:
             return others
 
