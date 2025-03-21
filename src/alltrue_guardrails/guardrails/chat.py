@@ -96,6 +96,9 @@ class ChatGuardian(ABC):
         alltrue_endpoint_identifier: str | None = None,
         logging_level: int | str = logging.INFO,
         _llm_api_provider: str = "any",
+        _keep_alive: bool | None = None,
+        _timeout: float | None = None,
+        _retries: int | None = None,
         **kwargs,
     ):
         """
@@ -115,6 +118,9 @@ class ChatGuardian(ABC):
             customer_id=alltrue_customer_id,
             api_url=alltrue_api_url,
             api_key=alltrue_api_key,
+            _keep_alive=_keep_alive,
+            _timeout=_timeout,
+            _retries=_retries,
         )
         self._prompt_hooks = _GuardTrailHooks()
         self._completion_hooks = _GuardTrailHooks()
@@ -217,8 +223,8 @@ class ChatGuardrails(ChatGuardian):
         alltrue_customer_id: str | None = None,
         alltrue_endpoint_identifier: str | None = None,
         logging_level: int | str = logging.INFO,
-        batch_size: int = 0,
-        queue_time: float = 1.0,
+        _batch_size: int = 0,
+        _queue_time: float = 1.0,
         **kwargs,
     ):
         super().__init__(
@@ -272,23 +278,23 @@ class ChatGuardrails(ChatGuardian):
             ],
         )
 
-        if batch_size == 0 or queue_time == 0:
+        if _batch_size == 0 or _queue_time == 0:
             # either way, batcher will be disabled
             self._observing_processor = self._guard_processor
             self._batch_control = None
         else:
-            self._log.info("Traces will be processed in batches")
+            self._log.info("Batching enabled")
             self._observing_processor = BatchRuleProcessor.clone(
                 original=self._guard_processor,
-                batch_size=batch_size,
-                queue_time=queue_time,
+                batch_size=_batch_size,
+                queue_time=_queue_time,
             )
-            self._batch_control = {"batch_size": batch_size, "queue_time": queue_time}
+            self._batch_control = {"batch_size": _batch_size, "queue_time": _queue_time}
         try:
             if asyncio.get_running_loop() is not None:
                 self._executor = asyncio
         except RuntimeError:
-            self._log.info("No running loop.")
+            self._log.info("No running loop, thread executor will be adapted")
             self._executor = ThreadExecutor()  # type: ignore
 
     def observe_input(self, prompt_messages: list[Guardable]) -> None:
@@ -340,4 +346,5 @@ class ChatGuardrails(ChatGuardian):
         if self._batch_control:
             self._observing_processor = BatchRuleProcessor.clone(
                 original=self._observing_processor,
+                **self._batch_control,  # type: ignore
             )

@@ -96,8 +96,11 @@ class BaseObserver:
         llm_api_path: str = "",
         logging_level: int | str = logging.INFO,
         blocking: bool = False,
-        batch_size: int = 0,
-        queue_time: float = 1.0,
+        _batch_size: int = 0,
+        _queue_time: float = 1.0,
+        _keep_alive: bool | None = None,
+        _timeout: float | None = None,
+        _retries: int | None = None,
     ):
         """
         :param alltrue_api_url: Alltrue API URL, loading from config `CONFIG_API_URL` if not specified.
@@ -120,12 +123,17 @@ class BaseObserver:
             llm_api_provider=llm_api_provider,
         )
         self._rule_processor = None
-        if blocking or batch_size == 0 or queue_time == 0:
+        self._api_control = {
+            "_keep_alive": _keep_alive,
+            "_timeout": _timeout,
+            "_retries": _retries,
+        }
+        if blocking or _batch_size == 0 or _queue_time == 0:
             self._batch_control = None
         else:
             self._batch_control = {
-                "queue_time": queue_time,
-                "batch_size": batch_size,
+                "queue_time": _queue_time,
+                "batch_size": _batch_size,
             }
         if not alltrue_endpoint_identifier:
             alltrue_endpoint_identifier = get_value("endpoint_identifier")
@@ -142,7 +150,7 @@ class BaseObserver:
             if asyncio.get_running_loop() is not None:
                 self._executor = asyncio
         except RuntimeError:
-            self._log.info("No running loop.")
+            self._log.info("No running loop, thread executor will be adapted")
             self._executor = ThreadExecutor()  # type: ignore
 
     def _resolve_endpoint_info(self, **kwargs) -> EndpointInfo:
@@ -202,10 +210,10 @@ class BaseObserver:
         if self._blocking:
             return await request_process
         else:
-            self._log.info(f"{rid}: observing {rtype} in background...")
             self._executor.ensure_future(  # type: ignore
                 request_process,
             )
+            self._log.info(f"{rtype}: {rid} request handled in background")
             return None
 
     def _patch_async_action(self):
@@ -213,12 +221,10 @@ class BaseObserver:
             rid = str(uuid.uuid4())
             call_args = ObservedArgs(args=args, kwargs=kwargs)
             request = self._before_input_process(instance, call_args)
-
-            self._log.debug(f"{rid}: {request}")
             request_url = request.full_url
             request_body = request.payload
 
-            self._log.debug(f"{rid}: observing input prompts...")
+            self._log.debug(f"{rid}: observed")
             request_process_result = await self._handle_request(
                 rtype="input",
                 rid=rid,
@@ -240,12 +246,12 @@ class BaseObserver:
                     call_args,
                 )
 
-            self._log.info(f"{rid}: forwarding prompts to API backend...")
+            self._log.debug(f"{rid}: forwarding to LLM API...")
             result = wrapped(*args, **kwargs)
             if asyncio.iscoroutine(result):
                 result = await result
 
-            self._log.debug(f"{rid}: observing output completions...")
+            self._log.debug(f"{rid}: LLM API response received")
             response_process_result = await self._handle_request(
                 rtype="output",
                 rid=rid,
@@ -269,7 +275,7 @@ class BaseObserver:
                     )
                     or result
                 )
-
+            self._log.debug(f"{rid}: observation completed")
             return result
 
         return wrap_async_action
@@ -296,16 +302,16 @@ class BaseObserver:
                 customer_id=self._config.customer_id,
                 api_url=self._config.api_url,
                 api_key=self._config.api_key,
-                _connection_keep_alive="none",
+                **self._api_control,
             )
         else:
-            self._log.info("Traces will be processed in batches")
+            self._log.info("Batching enabled")
             self._rule_processor = BatchRuleProcessor(
                 llm_api_provider=self._config.llm_api_provider,
                 customer_id=self._config.customer_id,
                 api_url=self._config.api_url,
                 api_key=self._config.api_key,
-                _connection_keep_alive="none",
+                **self._api_control,
                 **self._batch_control,
             )
 

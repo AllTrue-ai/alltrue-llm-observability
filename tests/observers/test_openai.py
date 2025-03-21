@@ -62,8 +62,8 @@ async def openai_client(
         alltrue_endpoint_identifier="dummy-endpoint-identifier",
         blocking=blocking,
         logging_level="DEBUG",
-        batch_size=5,
-        queue_time=0.5,
+        _batch_size=4,
+        _queue_time=0.25,
     )
     observer.register()
     _cls = request.param

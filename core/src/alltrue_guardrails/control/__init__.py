@@ -27,7 +27,7 @@ from ..http.cache import CachableHttpClient
 from ..utils.config import AlltrueConfig
 from ._internal.token import TokenRetriever
 
-MAX_TOKEN_REFRESH_RETRIES = 5
+MAX_TOKEN_REFRESH_RETRIES = 3
 
 
 class AlltrueAPIClient(ABC):
@@ -42,7 +42,9 @@ class AlltrueAPIClient(ABC):
         customer_id: str | None = None,
         llm_api_provider: str | None = None,
         logging_level: int | str = logging.INFO,
-        _connection_keep_alive: str | None = None,
+        _timeout: float | None = None,
+        _retries: int | None = None,
+        _keep_alive: bool | None = None,
         **kwargs,
     ):
         self.log = logging.getLogger("alltrue.api.client")
@@ -58,13 +60,20 @@ class AlltrueAPIClient(ABC):
                 customer_id=customer_id,
                 llm_api_provider=llm_api_provider,
             )
+            self.log.info(
+                f"Initiated with config: {self.config.model_dump_json(indent=2, exclude={'llm_api_provider'})}"
+            )
+
         _client = kwargs.pop("_client", None)
         if isinstance(_client, CachableHttpClient):
             self._client = _client
         else:
             self._client = CachableHttpClient(
                 base_url=self.config.api_url,  # type: ignore
-                _keep_alive=_connection_keep_alive,
+                logger=self.log,
+                keep_alive=_keep_alive,
+                timeout=_timeout,
+                retries=_retries,
             )
         self._token_manager = TokenRetriever(
             config=self.config,
@@ -96,9 +105,7 @@ class AlltrueAPIClient(ABC):
                 refresh=token_error_count > 0,
             )
             if token:
-                self.log.debug(
-                    f"{method} to control\n endpoint: {endpoint}\n token: {token}\n body: {body}\n"
-                )
+                self.log.debug(f"{method} {endpoint} | token: {token} | body: {body}")
                 reply = await self._client.request(
                     method=method,
                     url=endpoint,
@@ -117,12 +124,12 @@ class AlltrueAPIClient(ABC):
                     return reply
 
             token_error_count += 1
-            self.log.warning(
+            self.log.info(
                 "Auth failed with Control Plane API,"
                 f"retrying {token_error_count} out of {MAX_TOKEN_REFRESH_RETRIES}"
             )
         else:
-            self.log.error(
+            self.log.warning(
                 "Failed too many times for retrieving a valid token. Giving up."
             )
             return httpx.Response(

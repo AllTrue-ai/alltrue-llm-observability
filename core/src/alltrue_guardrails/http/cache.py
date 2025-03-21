@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
 from ..utils.logfire import configure_logfire  # isort:skip
 
 logfire = configure_logfire()  # isort:skip
@@ -30,48 +31,66 @@ from ..utils.config import get_or_default
 from . import HttpMethod
 
 
-def _get_http_timeout_config() -> httpx.Timeout:
-    timeout_value = get_or_default(
-        "HTTP_TIMEOUT", prefix="CONFIG", default="default"
-    ).lower()
+def _get_http_timeout_config(
+    logger: logging.Logger,
+    timeout: float | None = None,
+) -> httpx.Timeout:
+    if timeout is None:
+        timeout_value = get_or_default(
+            "HTTP_TIMEOUT", prefix="CONFIG", default="default"
+        ).lower()
+        if timeout_value == "none":
+            timeout = -1
+        elif timeout_value == "default":
+            logging.debug("HTTP_TIMEOUT is set to default, using default timeout")
+        else:
+            timeout = float(timeout_value)
 
     # Convert the timeout value to the appropriate format
-    if timeout_value == "none":
-        logging.debug("HTTP_TIMEOUT is set to None, no timeout will be set")
-        timeout = httpx.Timeout(None)  # No timeout
-    elif timeout_value == "default":
-        logging.debug("HTTP_TIMEOUT is set to default, using default timeout")
-        timeout = None  # Use httpx default timeout
+    if timeout is None:
+        logger.debug("Using default timeout")
+        httpx_timeout = None  # Use httpx default timeout
+    elif timeout < 0:
+        logger.info("HTTP timeout disabled")
+        httpx_timeout = httpx.Timeout(None)  # No timeout
     else:
-        logging.info(f"HTTP_TIMEOUT is set to {timeout_value}, using custom timeout")
-        timeout = httpx.Timeout(float(timeout_value))  # Custom timeout in seconds
-    return timeout
+        logger.info(f"HTTP Timeout set to {timeout}s")
+        httpx_timeout = httpx.Timeout(timeout)  # Custom timeout in seconds
+    return httpx_timeout
 
 
 def _get_http_transport_config(
+    logger: logging.Logger,
     verify: bool = True,
-    keep_alive: str | None = None,
+    keep_alive: bool | None = None,
     retries: int = 0,
 ) -> httpx.AsyncHTTPTransport | None:
-    keepalive_value = (
-        keep_alive
-        or get_or_default(
-            name="HTTP_KEEPALIVE", prefix="CONFIG", default="default"
-        ).lower()
-    )
-    if keepalive_value in ["none", "no", "disabled", "0"]:
+    if keep_alive is None:
+        keepalive_value = (
+            keep_alive
+            or get_or_default(
+                name="HTTP_KEEPALIVE", prefix="CONFIG", default="default"
+            ).lower()
+        )
+    else:
+        keepalive_value = str(keep_alive).lower()
+
+    if keepalive_value in ["none", "no", "disabled", "0", "false"]:
         # do not keep alive and reopen connection on every request to prevent event loop closed error
         # which is very likely to happen on pytesting async code
         # see https://github.com/encode/httpx/discussions/2959#discussioncomment-7665278
-        logging.debug("HTTP_KEEPALIVE is set to None, no keep alive will be set")
+        logger.info("HTTP keep-alive disabled")
         return httpx.AsyncHTTPTransport(
             verify=verify,
-            limits=httpx.Limits(max_connections=100, max_keepalive_connections=0),
+            limits=httpx.Limits(
+                max_connections=100,
+                max_keepalive_connections=0,
+            ),
             retries=retries,
         )
     else:
         # use default keep alive settings
-        logging.debug("HTTP_KEEPALIVE is set to default, using default keep alive")
+        logger.debug("HTTP keep-alive is set to default")
         return None
 
 
@@ -155,18 +174,32 @@ class CachableHttpClient(httpx.AsyncClient):
     def __init__(
         self,
         base_url: str,
+        logger: logging.Logger = logging.getLogger("alltrue.http"),
         verify: bool = True,
+        timeout: float | None = 1.0,
+        retries: int | None = None,
         cache_ttl: int = 600,
         cache_capacity: int = 32,
-        _keep_alive: str | None = None,
+        keep_alive: bool | None = None,
     ):
+        """
+        :param base_url: base url to make requests against
+        :param verify: whether to verify TLS certificates
+        :param timeout: HTTP request timeout; set to None to use system default, set to negative number to disable.
+        :param retries: HTTP request retries; set to 0 to disable.
+        :param cache_ttl: HTTP request cache TTL; set to None to disable.
+        :param cache_capacity: HTTP request cache capacity; set to 0 to disable.
+        """
         self._controller = PathBasedCacheController()
         super().__init__(
             base_url=base_url,
-            timeout=_get_http_timeout_config(),
+            timeout=_get_http_timeout_config(logger=logger, timeout=timeout),
             transport=hishel.AsyncCacheTransport(
                 transport=_get_http_transport_config(
-                    verify=verify, keep_alive=_keep_alive
+                    logger=logger,
+                    verify=verify,
+                    keep_alive=keep_alive,
+                    retries=retries or 0,
                 )
                 or httpx.AsyncHTTPTransport(verify=verify),
                 storage=hishel.AsyncInMemoryStorage(

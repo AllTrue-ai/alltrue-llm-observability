@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import uuid
 
 from ..utils.logfire import configure_logfire  # isort:skip
 
@@ -64,7 +65,11 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
 
     @logfire.instrument()
     async def process_batch(self, batch: list[_Request]) -> list[httpx.Response] | None:
-        self.log.info(f"Handling {len(batch)} requests in queue...")
+        _batch_id = str(uuid.uuid4())[:8]
+        self.log.debug(
+            f"Batch:{_batch_id} started handling {len(batch)} requests in queue..."
+        )
+
         calls = []
         for key, requests in itertools.groupby(
             sorted(batch, key=self._key_func), key=self._key_func
@@ -78,9 +83,6 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
                 request.body
                 for request in filter(lambda r: r.body is not None, requests)
             ]
-            self.log.info(
-                f"Calling {batch_endpoint} with {len(batch_body)}/{len(batch)} of overall requests"
-            )
             calls.append(
                 self._func(
                     batch_endpoint,
@@ -90,19 +92,25 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
                     False,  # no cache for batch
                 )
             )
-        responses = await asyncio.wait_for(
-            asyncio.gather(*calls, return_exceptions=True),
-            timeout=_DEFAULT_BATCH_TIMEOUT,
-        )
+        try:
+            responses = await asyncio.wait_for(
+                asyncio.gather(*calls, return_exceptions=True),
+                timeout=_DEFAULT_BATCH_TIMEOUT,
+            )
+        except Exception as e:
+            responses = [e]
         for response in responses:
             match response:
                 case exc if isinstance(exc, Exception):
-                    self.log.warning("Exception occurred", exc_info=exc)
+                    self.log.warning(
+                        f"Batch:{_batch_id} exception occurred", exc_info=exc
+                    )
                 case res if isinstance(res, httpx.Response):
                     if HttpStatus.is_error(res.status_code):
                         self.log.warning(
-                            f"Request batch API unsuccessful: {res.status_code}:{res.text}"
+                            f"Batch:{_batch_id} request unsuccessful - {res.status_code}:{res.text}"
                         )
+        self.log.info(f"Batch:{_batch_id} handled {len(batch)} requests in queue")
         # no need to handle other results
         return None
 
@@ -119,9 +127,8 @@ class BatchRuleProcessor(RuleProcessor):
         customer_id: str | None = None,
         llm_api_provider: str | None = None,
         logging_level: int | str = logging.INFO,
-        _connection_keep_alive: str | None = None,
-        batch_size: int = 5,
-        queue_time: float = 5.0,
+        batch_size: int = 6,
+        queue_time: float = 1.0,
         **kwargs,
     ):
         super().__init__(
@@ -130,9 +137,10 @@ class BatchRuleProcessor(RuleProcessor):
             customer_id=customer_id,
             llm_api_provider=llm_api_provider,
             logging_level=logging_level,
-            _connection_keep_alive=_connection_keep_alive,
             **kwargs,
         )
+
+        self.log = logging.getLogger("alltrue.api.batcher")
         self._batcher = _BatchCaller(
             func=super()._chat,
             logger=self.log,
@@ -154,12 +162,12 @@ class BatchRuleProcessor(RuleProcessor):
         matched = re.search(r"/process-(input|output)/.*", endpoint)
         endpoint_type = matched.group(1) if matched else None
         if endpoint_type is not None:
-            self.log.info(f"Batching {endpoint} request...")
             t = asyncio.ensure_future(
                 self._batcher.process(
                     _Request(endpoint=endpoint, method=method, body=body)
                 )
             )
+            self.log.debug(f"Reqeust {endpoint} batched")
             payload_type = "request" if endpoint_type == "input" else "response"
             return httpx.Response(
                 status_code=HttpStatus.OK,
@@ -191,7 +199,7 @@ class BatchRuleProcessor(RuleProcessor):
 
     @override
     async def close(self, timeout: float | None = None) -> None:
-        self.log.info(f"Closing...")
+        self.log.info("Closing batcher...")
         try:
             await asyncio.wait_for(
                 asyncio.gather(
@@ -200,8 +208,9 @@ class BatchRuleProcessor(RuleProcessor):
                 ),
                 timeout=timeout,
             )
+            self.log.info("Batcher closed!")
         except TimeoutError:
-            self.log.warning("Batch closing timed out, some events might be lost")
+            self.log.warning("Batcher closure timed out, some batches might be lost!")
 
     @classmethod
     def clone(
