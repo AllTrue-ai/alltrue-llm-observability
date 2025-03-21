@@ -8,7 +8,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 jobs:
-  aws-non-concurrent-tests-job:
+  aws-non-concurrent-build-job:
     timeout-minutes: 35
     runs-on:
       labels: [self-hosted, linux]

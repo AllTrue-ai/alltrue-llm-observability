@@ -1,0 +1,28 @@
+name: auto prerelease
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types: [closed]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+jobs:
+  prerelease-job:
+    if: ${{ github.event.pull_request.merged && github.event.pull_request.head.ref != 'main' && contains(github.event.pull_request.labels.*.name, 'bump') }}
+    timeout-minutes: 10
+    runs-on:
+      labels: [ self-hosted, linux ]
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Release
+        uses: python-semantic-release/python-semantic-release@v9.21.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: true
