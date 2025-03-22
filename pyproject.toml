@@ -85,3 +85,15 @@ exclude = "core/tests/__init__.py"
 module = ["tests.*"]
 ignore_missing_imports = true
 follow_imports_for_stubs = true
+
+[tool.semantic_release]
+version_variables = ["src/version.py:__version__"]
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.branches.develop]
+match = "develop"
+prerelease = true
+prerelease_token = "alpha"
