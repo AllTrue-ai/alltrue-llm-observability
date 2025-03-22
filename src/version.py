@@ -13,4 +13,4 @@
 #  limitations under the License.
 #
 
-__version__ = "0.0.2-alpha.6"
+__version__ = "0.0.2-alpha.8"
