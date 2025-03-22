@@ -19,8 +19,16 @@ jobs:
       id-token: write
       contents: write
     steps:
+      - name: Init
+        uses: actions/create-github-app-token@v1
+        id: bot-token
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_KEY }}
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ steps.bot-token.outputs.token }}
       - name: Setup
         run: |
           python3.11 -m venv venv
@@ -28,8 +36,10 @@ jobs:
           pip install python-semantic-release
       - name: Release
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
           source venv/bin/activate
           semantic-release version --prerelease --push
           semantic-release publish
