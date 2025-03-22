@@ -17,19 +17,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install dependencies
+      - name: Setup
         run: |
           eval $(ssh-agent -s)
           ssh-add ~/.ssh/test-machine-ssh
-          python3.11 -m pip install --upgrade pip
           python3.11 -m venv venv
           source venv/bin/activate
+          pip install --upgrade pip
           pip install -e.[full]
-      - name: Run pre-commit hooks
+      - name: Check
         run: |
           source venv/bin/activate
           pre-commit run --all-files
-      - name: Run tests
+      - name: Test
         run: |
           source venv/bin/activate
           pytest -m "not skip_on_aws" --maxfail=5 --durations=10
@@ -37,7 +37,7 @@ jobs:
         run: |
           source venv/bin/activate
           python -m build
-      - name: Release
+      - name: Upload
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
