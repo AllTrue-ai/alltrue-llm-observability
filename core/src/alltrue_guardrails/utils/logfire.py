@@ -71,27 +71,45 @@ class LogfireMock:
 _LOGFIRE = None
 
 
-def configure_logfire() -> Any:
+def configure_logfire(force: bool = False, **kwargs) -> Any:
     """
     Configure logfire for logging.
     Logfire is an optional dependency which may not be installed, in which case we mock it to prevent errors.
+
+    :param force: by default, configurations only set at the first time, giving this parameter as True to force setting logfire configurations.
     """
     global _LOGFIRE
     if _LOGFIRE is not None:
+        if force:
+            _configure(**kwargs)
         return _LOGFIRE
 
     if importlib.util.find_spec("logfire") is not None:
         import logfire
 
-        logfire.configure(
-            send_to_logfire="if-token-present", scrubbing=False, metrics=False
-        )
-        logfire.instrument_httpx()
-        import logging
+        _configure(**kwargs)
 
+        logfire.instrument_httpx()
         logging.basicConfig(handlers=[logfire.LogfireLoggingHandler()])
+
         _LOGFIRE = logfire
+
+        logging.getLogger("logfire").info("Logfire enabled")
     else:
         _LOGFIRE = LogfireMock()
 
+        logging.getLogger("logfire").info("Logfire disabled")
+
     return _LOGFIRE
+
+
+def _configure(**kwargs):
+    if importlib.util.find_spec("logfire") is not None:
+        import logfire
+
+        logfire.configure(
+            send_to_logfire="if-token-present",
+            scrubbing=False,
+            metrics=False,
+            **kwargs,
+        )

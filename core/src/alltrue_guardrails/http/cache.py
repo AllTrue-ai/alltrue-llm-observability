@@ -210,6 +210,5 @@ class CachableHttpClient(httpx.AsyncClient):
             ),
         )
 
-    @logfire.instrument()
     def register_cachable(self, cachable: CachableEndpoint):
         self._controller.register_cachable(cachable)
