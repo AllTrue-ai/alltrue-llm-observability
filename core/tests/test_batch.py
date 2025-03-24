@@ -64,28 +64,29 @@ async def test_batch_input_process(httpx_mock):
         api_key="dummy-api-key",
         customer_id="dummy-customer-id",
         llm_api_provider="any",
-        queue_time=0.5,
-        batch_size=5,
+        batch_size=3,
     )
-    for i in range(
-        10
-    ):  # the batches should be in 5, 3, 2 three times (first by size, the others by time)
-        result = await processor.process_request(
-            body=json.dumps(test_body),
-            request_id=str(uuid.uuid4()),
-            endpoint_identifier="dummy-endpoint-identifier",
-            url="https://httpbin.org/get/abc/123",
+    tasks = []
+    for i in range(10):  # the batches should be in 3, 3, 3, 1 four times
+        t = asyncio.ensure_future(
+            processor.process_request(
+                body=json.dumps(test_body),
+                request_id=str(uuid.uuid4()),
+                endpoint_identifier="dummy-endpoint-identifier",
+                url="https://httpbin.org/get/abc/123",
+            )
         )
-        await asyncio.sleep(0.05 * i)
-        assert result.status_code == HttpStatus.OK
+        tasks.append(t)
+    for t in tasks:
+        await t
+        res = t.result()
+        assert res.status_code == HttpStatus.OK
         assert (
-            json.loads(result.new_body)["message"]["content"]
+            json.loads(res.new_body)["message"]["content"]
             == test_body["message"]["content"]
         )
 
-    # wait a bit for process to be completed
-    await asyncio.sleep(0.5)
-    assert len(httpx_mock.get_requests()) == 4
+    assert len(httpx_mock.get_requests()) == 5
 
     result = await processor.process_response(
         body=json.dumps({}),
