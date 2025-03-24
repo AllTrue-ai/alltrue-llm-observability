@@ -102,7 +102,7 @@ class ChatGuardian(ABC):
         **kwargs,
     ):
         """
-        :param alltrue_api_url: Alltrue API base URL, could as well be loaded via envar <ALLTRUE_API_URL>. Default to https://prod.alltrue.com
+        :param alltrue_api_url: Alltrue API base URL, could as well be loaded via envar <ALLTRUE_API_URL>. Default to https://api.prod.alltrue-be.com
         :param alltrue_api_key: Alltrue API key, could as well be loaded via envar <ALLTRUE_API_KEY>.
         :param alltrue_customer_id: the customer ID registered in Alltrue API, could as well be loaded via envar <ALLTRUE_CUSTOMER_ID>
         :param alltrue_endpoint_identifier: the endpoint identifier defined in Alltrue API for LLM validation/observability could as well be loaded via envar <ALLTRUE_ENDPOINT_IDENTIFIER>
@@ -302,7 +302,7 @@ class ChatGuardrails(ChatGuardian):
         Observe the input in the background
         """
         (req_id, prompt) = self._cache_prompt(prompt_messages)
-        self._executor.run(
+        self._executor.ensure_future(
             self._observing_processor.process_request(
                 body=self._prompt_hooks.before(prompt),
                 request_id=req_id,
@@ -322,7 +322,7 @@ class ChatGuardrails(ChatGuardian):
         Observe the output in the background
         """
         (req_id, prompt) = self._pop_prompt(prompt_messages)
-        self._executor.run(
+        self._executor.ensure_future(
             self._observing_processor.process_response(
                 body=self._completion_hooks.before(completion_messages),
                 original_request_input=self._prompt_hooks.before(prompt),
@@ -339,7 +339,7 @@ class ChatGuardrails(ChatGuardian):
         Flush whatever currently queued in batcher
         """
         self._rid_cache.clear()
-        self._executor.run(
+        self._executor.ensure_future(
             self._observing_processor.close(timeout=timeout),
         )
         # restart batcher
