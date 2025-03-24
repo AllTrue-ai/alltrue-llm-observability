@@ -93,7 +93,7 @@ version_variables = ["src/version.py:__version__"]
 token = { env = "GITHUB_TOKEN" }
 
 [tool.semantic_release.branches.main]
-match = "main"
+match = "(main|release)"
 prerelease = false
 
 [tool.semantic_release.branches.develop]
