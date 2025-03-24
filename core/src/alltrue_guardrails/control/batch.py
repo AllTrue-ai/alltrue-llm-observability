@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
 import uuid
 
 from ..utils.logfire import configure_logfire  # isort:skip
@@ -127,8 +128,8 @@ class BatchRuleProcessor(RuleProcessor):
         customer_id: str | None = None,
         llm_api_provider: str | None = None,
         logging_level: int | str = logging.INFO,
-        batch_size: int = 6,
-        queue_time: float = 1.0,
+        batch_size: int = 5,
+        queue_time: float = _DEFAULT_BATCH_TIMEOUT,
         **kwargs,
     ):
         super().__init__(
@@ -162,10 +163,8 @@ class BatchRuleProcessor(RuleProcessor):
         matched = re.search(r"/process-(input|output)/.*", endpoint)
         endpoint_type = matched.group(1) if matched else None
         if endpoint_type is not None:
-            t = asyncio.ensure_future(
-                self._batcher.process(
-                    _Request(endpoint=endpoint, method=method, body=body)
-                )
+            await self._batcher.process(
+                _Request(endpoint=endpoint, method=method, body=body)
             )
             self.log.debug(f"Reqeust {endpoint} batched")
             payload_type = "request" if endpoint_type == "input" else "response"
@@ -179,7 +178,7 @@ class BatchRuleProcessor(RuleProcessor):
                             if body
                             else "{}"
                         ),
-                        "message": f"Batched as {t}",
+                        "message": f"Reqeust batched",
                     }
                 ),
             )
@@ -216,8 +215,8 @@ class BatchRuleProcessor(RuleProcessor):
     def clone(
         cls,
         original: RuleProcessor,
-        batch_size: int = 10,
-        queue_time: float = 10.00,
+        batch_size: int = 5,
+        queue_time: float = _DEFAULT_BATCH_TIMEOUT,
     ) -> "BatchRuleProcessor":
         """
         Copy constructor
