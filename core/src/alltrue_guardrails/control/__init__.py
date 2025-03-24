@@ -81,7 +81,6 @@ class AlltrueAPIClient(ABC):
             logging_level=logging_level,
         )
 
-    @logfire.instrument()
     async def _request(
         self,
         endpoint: str,

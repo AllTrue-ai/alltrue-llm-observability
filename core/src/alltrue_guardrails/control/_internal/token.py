@@ -59,7 +59,6 @@ class TokenRetriever:
             )
         )
 
-    @logfire.instrument()
     async def get_token(
         self,
         refresh: bool = False,
