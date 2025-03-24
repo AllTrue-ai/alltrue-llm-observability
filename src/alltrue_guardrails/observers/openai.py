@@ -17,13 +17,13 @@ import json
 from typing import Any, cast
 
 import httpx
-from alltrue.control.chat import ProcessResult
-from alltrue.http import HttpStatus
+from alltrue_guardrails.control.chat import ProcessResult
+from alltrue_guardrails.http import HttpStatus
 from openai import PermissionDeniedError
 from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
-from alltrue.observers import (
+from alltrue_guardrails.observers import (
     BaseObserver,
     EndpointRequest,
     Observable,
@@ -80,9 +80,12 @@ class OpenAIObserver(BaseObserver):
         instance: ObservedInstance,
         call_args: ObservedArgs,
     ) -> ChatCompletion | None:
-        if response.status_code == HttpStatus.OK and len(response.new_body or "") > 0:
+        if (
+            HttpStatus.is_success(response.status_code)
+            and len(response.new_body or "") > 0
+        ):
             return ChatCompletion.model_validate(json.loads(response.new_body))
-        elif response.status_code == HttpStatus.FORBIDDEN:
+        elif HttpStatus.is_unauthorized(response.status_code):
             raise PermissionDeniedError(
                 message=response.message,
                 response=httpx.Response(
@@ -112,8 +115,8 @@ class OpenAIObserver(BaseObserver):
 
         return EndpointRequest(
             url=str(openai_client.base_url) or "https://api.openai.com/v1"
-            if openai_client.base_url != self._llm_api_url
-            else self._llm_api_url,
+            if openai_client.base_url != self._default_endpoint_info.base_url
+            else self._default_endpoint_info.base_url,
             endpoint=self._resolve_endpoint_info(**all_headers),
             params=[
                 (k, v)
@@ -138,11 +141,11 @@ class OpenAIObserver(BaseObserver):
         call_args: ObservedArgs,
     ) -> ObservedArgs:
         (args, kwargs) = call_args
-        if result.status_code == HttpStatus.OK and len(result.new_body or "") > 0:
+        if HttpStatus.is_success(result.status_code) and len(result.new_body or "") > 0:
             payload = json.loads(result.new_body)
             kwargs["model"] = payload.get("model", kwargs.get("model", None))
             kwargs["messages"] = payload.get("messages", kwargs.get("messages", []))
-        elif result.status_code == HttpStatus.FORBIDDEN:
+        elif HttpStatus.is_unauthorized(result.status_code):
             raise PermissionDeniedError(
                 message=result.message,
                 response=httpx.Response(

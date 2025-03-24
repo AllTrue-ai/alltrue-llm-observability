@@ -37,7 +37,9 @@ def get_value(name: str, prefix: str = "ALLTRUE"):
 
 
 def _get_api_url():
-    return get_value(name="api_url")
+    return get_or_default(
+        name="api_url", prefix="ALLTRUE", default="https://prod.alltrue.com"
+    )
 
 
 def _get_customer_id():
@@ -52,11 +54,7 @@ def _get_api_provider():
     _provider = get_or_default(name="LLM_API_PROVIDER", prefix="CONFIG", default=None)
     match _provider or get_value(name="proxy_type", prefix="CONFIG"):
         case "gemini":
-            # workaround until the corresponding settings of demo env could be aligned
             return "google"
-        case _ibm_proxy if _ibm_proxy.startswith("ibmwatsonx"):
-            # workaround for ibmwatsonx proxies
-            return "ibmwatsonx"
         case others:
             return others
 

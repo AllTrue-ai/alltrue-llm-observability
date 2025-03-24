@@ -19,13 +19,14 @@ import uuid
 from importlib import import_module
 from typing import Any, Callable, Coroutine
 
-from alltrue.control.chat import ProcessResult, RuleProcessor
-from alltrue.utils.config import get_value
-from alltrue.utils.path import EndpointInfo
+from alltrue_guardrails.control.batch import BatchRuleProcessor
+from alltrue_guardrails.control.chat import ProcessResult, RuleProcessor
+from alltrue_guardrails.utils.config import AlltrueConfig, get_value
+from alltrue_guardrails.utils.path import EndpointInfo
 from typing_extensions import Literal, NamedTuple
 from wrapt import ObjectProxy, wrap_function_wrapper
 
-from alltrue.event.loop import ThreadExecutor
+from alltrue_guardrails.event.loop import ThreadExecutor
 
 
 def unwrap(obj: object, attr: str):
@@ -95,6 +96,11 @@ class BaseObserver:
         llm_api_path: str = "",
         logging_level: int | str = logging.INFO,
         blocking: bool = False,
+        _batch_size: int = 0,
+        _queue_time: float = 1.0,
+        _keep_alive: bool | None = None,
+        _timeout: float | None = None,
+        _retries: int | None = None,
     ):
         """
         :param alltrue_api_url: Alltrue API URL, loading from config `CONFIG_API_URL` if not specified.
@@ -110,13 +116,25 @@ class BaseObserver:
         self._log = logging.getLogger("alltrue.observer")
         self._log.setLevel(logging_level)
 
-        self._rule_processor = RuleProcessor(
-            llm_api_provider=llm_api_provider,
-            customer_id=alltrue_customer_id,
+        self._config = AlltrueConfig(
             api_url=alltrue_api_url,
             api_key=alltrue_api_key,
-            _connection_keep_alive="none",
+            customer_id=alltrue_customer_id,
+            llm_api_provider=llm_api_provider,
         )
+        self._rule_processor = None
+        self._api_control = {
+            "_keep_alive": _keep_alive,
+            "_timeout": _timeout,
+            "_retries": _retries,
+        }
+        if blocking or _batch_size == 0 or _queue_time == 0:
+            self._batch_control = None
+        else:
+            self._batch_control = {
+                "queue_time": _queue_time,
+                "batch_size": _batch_size,
+            }
         if not alltrue_endpoint_identifier:
             alltrue_endpoint_identifier = get_value("endpoint_identifier")
         self._default_endpoint_info = EndpointInfo(
@@ -125,10 +143,15 @@ class BaseObserver:
             proxy_type=llm_api_provider,
             path=llm_api_path,
         )
-        self._llm_api_url = self._rule_processor.config.api_url
         self._observables: list[Observable] = []
-        self._loop = ThreadExecutor()
         self._blocking = blocking
+
+        try:
+            if asyncio.get_running_loop() is not None:
+                self._executor = asyncio
+        except RuntimeError:
+            self._log.info("No running loop, thread executor will be adapted")
+            self._executor = ThreadExecutor()  # type: ignore
 
     def _resolve_endpoint_info(self, **kwargs) -> EndpointInfo:
         """
@@ -187,13 +210,10 @@ class BaseObserver:
         if self._blocking:
             return await request_process
         else:
-            self._log.info(f"[OBSERVER] {rid}: observing {rtype} in background...")
-            self._loop.ensure_future(
+            self._executor.ensure_future(  # type: ignore
                 request_process,
-                call_back=lambda task: self._log.info(
-                    f"[OBSERVER] {rid}: {rtype} background execution {task.exception() or ('cancelled' if task.cancelled() else 'completed')}]"
-                ),
             )
+            self._log.info(f"{rtype}: {rid} request handled in background")
             return None
 
     def _patch_async_action(self):
@@ -201,12 +221,10 @@ class BaseObserver:
             rid = str(uuid.uuid4())
             call_args = ObservedArgs(args=args, kwargs=kwargs)
             request = self._before_input_process(instance, call_args)
-
-            self._log.debug(f"[OBSERVER] {rid}: {request}")
             request_url = request.full_url
             request_body = request.payload
 
-            self._log.debug(f"[OBSERVER] {rid}: observing input prompts...")
+            self._log.debug(f"{rid}: observed")
             request_process_result = await self._handle_request(
                 rtype="input",
                 rid=rid,
@@ -220,7 +238,7 @@ class BaseObserver:
                     llm_api_provider=request.endpoint.proxy_type,
                 ),
             )
-            if request_process_result:
+            if self._blocking and request_process_result:
                 (args, kwargs) = self._after_input_process(
                     request_process_result,
                     request,
@@ -228,12 +246,12 @@ class BaseObserver:
                     call_args,
                 )
 
-            self._log.info(f"[OBSERVER] {rid}: forwarding prompts to API backend...")
+            self._log.debug(f"{rid}: forwarding to LLM API...")
             result = wrapped(*args, **kwargs)
             if asyncio.iscoroutine(result):
                 result = await result
 
-            self._log.debug(f"[OBSERVER] {rid}: observing output completions...")
+            self._log.debug(f"{rid}: LLM API response received")
             response_process_result = await self._handle_request(
                 rtype="output",
                 rid=rid,
@@ -250,14 +268,14 @@ class BaseObserver:
                     llm_api_provider=request.endpoint.proxy_type,
                 ),
             )
-            if response_process_result:
+            if self._blocking and response_process_result:
                 return (
                     self._after_output_process(
                         response_process_result, request, instance, call_args
                     )
                     or result
                 )
-
+            self._log.debug(f"{rid}: observation completed")
             return result
 
         return wrap_async_action
@@ -270,10 +288,33 @@ class BaseObserver:
 
         return wrap_sync_action
 
+    @property
+    def is_blocking(self):
+        return self._blocking
+
     def register(self):
         """
         Register this observer to all observable operations.
         """
+        if self._batch_control is None:
+            self._rule_processor = RuleProcessor(
+                llm_api_provider=self._config.llm_api_provider,
+                customer_id=self._config.customer_id,
+                api_url=self._config.api_url,
+                api_key=self._config.api_key,
+                **self._api_control,
+            )
+        else:
+            self._log.info("Batching enabled")
+            self._rule_processor = BatchRuleProcessor(
+                llm_api_provider=self._config.llm_api_provider,
+                customer_id=self._config.customer_id,
+                api_url=self._config.api_url,
+                api_key=self._config.api_key,
+                **self._api_control,
+                **self._batch_control,
+            )
+
         for observable in self._observables:
             wrap_function_wrapper(
                 module=observable.module_name,
@@ -292,3 +333,4 @@ class BaseObserver:
                 f"{observable.module_name}.{observable.class_name}",
                 observable.func_name,
             )
+        self._executor.run(self._rule_processor.close(timeout=1))

@@ -13,16 +13,23 @@
 #  limitations under the License.
 #
 
-from enum import IntEnum
-from typing import Literal
-
-HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+import pytest
+from alltrue_guardrails.utils.logfire import LogfireMock, configure_logfire
 
 
-class HttpStatus(IntEnum):
-    OK = 200
-    MOVED_PERMANENTLY = 301
-    TEMPORARY_REDIRECT = 307
-    PERMANENT_REDIRECT = 308
-    UNAUTHORIZED = 401
-    FORBIDDEN = 403
+@pytest.mark.parametrize(
+    "logfire",
+    [
+        configure_logfire(),
+        LogfireMock(),
+    ],
+)
+def test_logfire(logfire):
+    @logfire.instrument("abc")
+    def simple_func():
+        return 1
+
+    assert simple_func() == 1
+
+    with logfire.span("def"):
+        assert True

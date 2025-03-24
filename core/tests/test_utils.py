@@ -14,7 +14,7 @@
 #
 
 import pytest
-from alltrue.utils.path import EndpointInfo
+from alltrue_guardrails.utils.path import EndpointInfo
 
 
 @pytest.mark.parametrize(
@@ -162,6 +162,18 @@ def test_parse_and_compose():
 
     parsed = EndpointInfo.parse_from_path(path)
     assert parsed.path == "/v1/something"
+    assert parsed.base_url == "https://test-customer.openai.azure.com"
+    assert parsed.proxy_type == "azure-openai"
+    assert parsed.endpoint_identifier == "random"
+
+    assert parsed.compose_path() == path
+
+
+def test_parse_no_path():
+    path = "/endpoint/random/base-url/https://test-customer.openai.azure.com/proxy-type/azure-openai"
+
+    parsed = EndpointInfo.parse_from_path(path)
+    assert parsed.path == ""
     assert parsed.base_url == "https://test-customer.openai.azure.com"
     assert parsed.proxy_type == "azure-openai"
     assert parsed.endpoint_identifier == "random"

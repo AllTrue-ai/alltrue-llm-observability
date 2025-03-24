@@ -15,6 +15,7 @@
 
 import os
 import shutil
+import sys
 from pathlib import Path
 from subprocess import Popen
 
@@ -39,6 +40,9 @@ def init_servers(
     target_url: str | None = None,
     proxy_args: list[str] = [],
 ) -> tuple[Popen, int, Popen, int]:
+    """
+    Launching a mock Alltrue API server as well as a LLM API server for further testing.
+    """
     Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
     for p in Path(LOG_DIR).glob(f"test_*.txt"):
         p.unlink()
@@ -84,8 +88,8 @@ def init_servers(
 
     llm_process = Popen(
         [
-            os.path.join(PROJECT_DIR, "venv", "bin", "python"),
-            os.path.join(PROJECT_DIR, "venv", "bin", "mitmdump"),
+            sys.executable,
+            os.path.join(os.path.dirname(sys.executable), "mitmdump"),
             "-s",
             os.path.join(TESTS_DIR, "mocks", "openai.py"),
             "--set",

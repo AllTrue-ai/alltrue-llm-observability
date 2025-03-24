@@ -13,15 +13,18 @@
 #  limitations under the License.
 #
 
+from ...utils.logfire import configure_logfire  # isort:skip
+
+logfire = configure_logfire()  # isort:skip
+
 import json
 import logging
 
 import httpcore
-from alltrue.http import HttpStatus
-from alltrue.http.cache import CachableEndpoint, CachableHttpClient
-from alltrue.utils.config import AlltrueConfig
 
-logger = logging.getLogger("alltrue.token")
+from ...http import HttpStatus
+from ...http.cache import CachableEndpoint, CachableHttpClient
+from ...utils.config import AlltrueConfig
 
 _TOKEN_ENDPOINT = "/v1/auth/issue-jwt-token"
 
@@ -33,7 +36,19 @@ def _gen_cache_key(request: httpcore.Request, body: bytes = b"") -> bytes:
 
 
 class TokenRetriever:
-    def __init__(self, config: AlltrueConfig, client: CachableHttpClient):
+    """
+    Retrieve access token from Alltrue API.
+    """
+
+    def __init__(
+        self,
+        config: AlltrueConfig,
+        client: CachableHttpClient,
+        logging_level: int | str = logging.INFO,
+    ):
+        self.log = logging.getLogger("alltrue.api.token")
+        self.log.setLevel(logging_level)
+
         self._config = config
         self._client = client
         self._client.register_cachable(
@@ -60,13 +75,13 @@ class TokenRetriever:
             },
             extensions={"cache_disabled": True} if refresh else {"force_cache": True},
         )
-        if response.status_code == HttpStatus.OK:
+        if HttpStatus.is_success(response.status_code):
             payload = response.json()
             if "access_token" in payload:
                 return payload["access_token"]
             else:
-                logger.warning(f"[IAK] Failed to get access token: {payload}")
+                self.log.warning(f"Failed to get access token: {payload}")
                 return None
         else:
-            logger.warning(f"[IAK] Failed to get access token: {response.text}")
+            self.log.warning(f"Failed to get access token: {response.text}")
             return None

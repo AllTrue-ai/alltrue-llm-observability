@@ -45,10 +45,11 @@ jobs:
         run: |
           eval $(ssh-agent -s)
           ssh-add ~/.ssh/test-machine-ssh
-          python3.11 -m pip install --upgrade pip
           python3.11 -m venv venv
           source venv/bin/activate
+          pip install --upgrade pip
           pip install -e.[full]
+          pip install pytest-md-report
       - name: Run pre-commit hooks
         run: |
           source venv/bin/activate
@@ -56,4 +57,11 @@ jobs:
       - name: Run tests
         run: |
           source venv/bin/activate
-          pytest -m "not skip_on_aws" --maxfail=5 --durations=10
+          pytest -m "not skip_on_aws" --maxfail=5 --durations=10 --md-report --md-report-flavor github --md-report-output test_report.md
+      - name: Render test failures
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: ${{ hashFiles('test_report.md') != '' }}
+        with:
+          header: test-report
+          recreate: true
+          path: 'test_report.md'

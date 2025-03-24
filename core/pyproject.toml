@@ -3,18 +3,20 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project]
-name = "alltrue-llm-observability-core"
+name = "alltrue-guardrails-core"
 dynamic = ["version"]
 authors = [
     {name = "AllTrue.ai INC", email = "ury@alltrue.ai"}
 ]
-description = "LLM Observability Core Library for AllTrue.ai API"
+description = "Alltrue Guardrails Core Library"
 dependencies = [
     "hishel~=0.1.1",
     "httpx~=0.28.0",
     "logfunc~=2.9.1",
     "pydantic>=2.6.4",
     "python-dotenv~=1.0.1",
+    "async-batcher~=0.2.2",
+    "logfunc>=2.9.1",
 ]
 requires-python = ">= 3.11"
 
@@ -28,13 +30,17 @@ testing = [
     "pytest-asyncio~=0.25.3",
     "nest-asyncio~=1.6.0",
 ]
+logfire-support = [
+    "logfire[httpx]>=2.11.1",
+    "opentelemetry-instrumentation-httpx>=0.48b0",
+]
 
 [tool.pdm.version]
 source = "file"
 path = "../src/version.py"
 
 [tool.pdm.build]
-includes = ["src/alltrue"]
+includes = ["src/alltrue_guardrails", "src/py.typed"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

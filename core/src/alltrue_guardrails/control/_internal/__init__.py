@@ -12,7 +12,3 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-
-import re
-
-LLM_API_KEY_PATTERN = re.compile(r"(x-[\w\-]*key|[aA]uthorization)$")

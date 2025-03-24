@@ -23,7 +23,8 @@ from typing import Any, Coroutine
 
 class ThreadExecutor:
     """
-    Using threading to trigger event loop to ensure tasks to be run in the background
+    Thread based event loop wrapper to ensure tasks to be run in the background.
+    Intended to maintain the same or similar interfaces as asyncio to be a drop-in when event loop is not available.
     """
 
     def __init__(
@@ -39,7 +40,7 @@ class ThreadExecutor:
         """
         self._loop = loop
         self._tasks: set[asyncio.Task] = set()
-        self._logger = logging.getLogger(__name__) if log_on_execution else None
+        self._logger = logging.getLogger("alltrue.event") if log_on_execution else None
         self._lock = threading.Lock()
         threading.Thread(
             target=self._start, args=(execution_interval,), daemon=True
@@ -61,24 +62,26 @@ class ThreadExecutor:
 
     def _task_done(self, task: asyncio.Task):
         self._log(
-            logging.INFO,
-            f"[LOOP] {'Cancelled' if task.cancelled() else 'Completed'} the execution of {task.get_name()}",
+            logging.DEBUG,
+            f"{'Cancelled' if task.cancelled() else 'Completed'} the execution of {task.get_name()}",
         )
         exc_info = task.exception()
         if exc_info:
             self._log(
                 logging.INFO,
-                f"[LOOP] Exception observed on {task.get_name()}",
+                f"Exception observed on {task.get_name()}",
                 exc_info=exc_info,
             )
         with self._lock:
             self._tasks.discard(task)
 
     def ensure_future(
-        self, coroutine: Coroutine[Any, Any, Any], call_back: Callable | None = None
-    ) -> None:
+        self,
+        coroutine: Coroutine[Any, Any, Any],
+        call_back: Callable | None = None,
+    ) -> asyncio.Task[Any]:
         """
-        Similar to `asyncio.ensure_future` to run the given coroutine in the background whenever the lopp is available.
+        Similar to `asyncio.ensure_future` to run the given coroutine in the background whenever the loop is available.
         """
         task = self._loop.create_task(coroutine)
         if call_back:
@@ -86,6 +89,14 @@ class ThreadExecutor:
         task.add_done_callback(self._task_done)
         with self._lock:
             self._tasks.add(task)
+        return task
+
+    def run(
+        self,
+        coroutine: Coroutine[Any, Any, Any],
+        call_back: Callable | None = None,
+    ) -> None:
+        self.ensure_future(coroutine, call_back=call_back)
 
     def stop(self):
         if self.is_running:
@@ -97,7 +108,7 @@ class ThreadExecutor:
         else:
             self._log(
                 logging.WARNING,
-                "[LOOP] Cannot closed while already closed or still running.",
+                "Cannot closed while already closed or still running.",
             )
 
     @property

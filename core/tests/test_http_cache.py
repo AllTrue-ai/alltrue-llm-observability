@@ -17,7 +17,7 @@ import time
 
 import httpx
 import pytest
-from alltrue.http.cache import CachableEndpoint, CachableHttpClient
+from alltrue_guardrails.http.cache import CachableEndpoint, CachableHttpClient
 
 
 @pytest.mark.asyncio
