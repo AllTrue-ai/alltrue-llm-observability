@@ -17,48 +17,31 @@ concurrency:
 jobs:
   aws-non-concurrent-tests-job:
     timeout-minutes: 35
-    runs-on:
-      labels: [self-hosted, linux]
+    runs-on: ubuntu-latest
     permissions:
       issues: write
       pull-requests: write
       contents: read
     steps:
-      - name: Check for required labels
-        if: ${{ github.event_name == 'pull_request'}}
-        uses: mheap/github-action-required-labels@v5
-        with:
-          mode: exactly
-          count: 1
-          labels: "run_aws_tests"
-          message: "If you want to run the self-hosted non concurrent aws test, add the `run_aws_tests` label to this PR. Click `Details` -> `Re-run jobs` to rerun this particular job."
-      - name: Check out repository code
+      - name: Checkout
         uses: actions/checkout@v4
-      - name: Create .env file
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Setup
         run: |
           echo "ALLTRUE_API_URL=https://api.alltrue-be.com" > .env
           echo "ALLTRUE_API_KEY=${{ secrets.API_KEY }}" >> .env
           echo "ALLTRUE_CUSTOMER_ID=${{ secrets.CUSTOMER_ID }}" >> .env
           echo "ALLTRUE_ENDPOINT_IDENTIFIER=${{ secrets.ENDPOINTER_IDENTIFIER }}" >> .env
           echo "CONFIG_LLM_API_PROVIDER=any" >> .env
-      - name: Install dependencies
+      - name: Test
         run: |
-          eval $(ssh-agent -s)
-          ssh-add ~/.ssh/test-machine-ssh
-          python3.11 -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
           pip install -e.[full]
           pip install pytest-md-report
-      - name: Run pre-commit hooks
-        run: |
-          source venv/bin/activate
           pre-commit run --all-files
-      - name: Run tests
-        run: |
-          source venv/bin/activate
           pytest -m "not skip_on_aws" --maxfail=5 --durations=10 --md-report --md-report-flavor github --md-report-output test_report.md
-      - name: Render test failures
+      - name: Report
         uses: marocchino/sticky-pull-request-comment@v2
         if: ${{ hashFiles('test_report.md') != '' }}
         with:
