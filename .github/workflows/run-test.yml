@@ -15,7 +15,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
-  aws-non-concurrent-tests-job:
+  test-pull-request:
     timeout-minutes: 35
     runs-on: ubuntu-latest
     permissions:
@@ -39,6 +39,7 @@ jobs:
         run: |
           pip install -e.[full]
           pip install pytest-md-report
+          pre-commit autoupdate --repo https://github.com/pre-commit/pre-commit-hooks
           pre-commit run --all-files
           pytest -m "not skip_on_aws" --maxfail=5 --durations=10 --md-report --md-report-flavor github --md-report-output test_report.md
       - name: Report
