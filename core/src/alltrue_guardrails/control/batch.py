@@ -13,17 +13,12 @@
 #  limitations under the License.
 #
 
-import uuid
-
-from ..utils.logfire import configure_logfire  # isort:skip
-
-logfire = configure_logfire()  # isort:skip
-
 import asyncio
 import itertools
 import json
 import logging
 import re
+import uuid
 from typing import Any, Callable, Coroutine, NamedTuple
 
 import httpx
@@ -64,7 +59,6 @@ class _BatchCaller(AsyncBatcher[_Request, httpx.Response]):
         self._key_func = lambda r: f"[{r.method}]{r.endpoint}"
         self.log = logger
 
-    @logfire.instrument()
     async def process_batch(self, batch: list[_Request]) -> list[httpx.Response] | None:
         _batch_id = str(uuid.uuid4())[:8]
         self.log.debug(
@@ -151,7 +145,6 @@ class BatchRuleProcessor(RuleProcessor):
         )
 
     @override
-    @logfire.instrument()
     async def _chat(
         self,
         endpoint: str,
@@ -225,6 +218,7 @@ class BatchRuleProcessor(RuleProcessor):
             return cls(
                 _config=original.config,
                 _client=original._client,
+                logging_level=original.log.level,
                 batch_size=original._batcher.max_batch_size,
                 queue_time=original._batcher.max_queue_time,
             )
@@ -232,6 +226,7 @@ class BatchRuleProcessor(RuleProcessor):
             return cls(
                 _config=original.config,
                 _client=original._client,
+                logging_level=original.log.level,
                 batch_size=batch_size,
                 queue_time=queue_time,
             )

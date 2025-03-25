@@ -27,7 +27,7 @@ Repository = "https://github.com/AllTrue-ai/alltrue-llm-observability"
 testing = [
     "pytest~=8.3.5",
     "pytest_httpx~=0.35.0",
-    "pytest-asyncio~=0.25.3",
+    "pytest-asyncio~=0.26.0",
     "nest-asyncio~=1.6.0",
 ]
 logfire-support = [

@@ -104,7 +104,7 @@ class RuleProcessor(AlltrueAPIClient):
             )
         )
 
-    @logfire.instrument("Calling control plane endpoint {endpoint=}")
+    @logfire.instrument("Calling LLM Chat API: {endpoint=}")
     async def _chat(
         self,
         endpoint: str,
@@ -121,7 +121,6 @@ class RuleProcessor(AlltrueAPIClient):
             cache=cache,
         )
 
-    @logfire.instrument("Checking connection to control plane")
     async def check_connection(
         self,
         endpoint_identifier: str,
@@ -148,7 +147,6 @@ class RuleProcessor(AlltrueAPIClient):
             return False
         return True
 
-    @logfire.instrument()
     async def process_request(
         self,
         *,
@@ -240,7 +238,6 @@ class RuleProcessor(AlltrueAPIClient):
             )
             return None
 
-    @logfire.instrument()
     async def process_response(
         self,
         *,

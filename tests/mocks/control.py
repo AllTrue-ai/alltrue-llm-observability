@@ -61,6 +61,7 @@ async def chat_batch_request(request: Request, proxy_type: str):
     data = await request.json()
     status = 0
     processed = []
+    print(f"processing {len(data['requests'])} input batches")
     for request in data["requests"]:
         result = _handle_request_payload(request)
         processed.append(result["processed_input"])
@@ -94,6 +95,7 @@ async def chat_batch_response(request: Request, proxy_type: str):
     data = await request.json()
     status = 0
     processed = []
+    print(f"processing {len(data['requests'])} output batches")
     for request in data["requests"]:
         result = _handle_response_payload(request)
         processed.append(result["processed_output"])

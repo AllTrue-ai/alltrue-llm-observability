@@ -115,6 +115,7 @@ class ChatGuardian(ABC):
             customer_id=alltrue_customer_id,
             api_url=alltrue_api_url,
             api_key=alltrue_api_key,
+            logging_level=logging_level,
             _keep_alive=_keep_alive,
             _timeout=_timeout,
             _retries=_retries,
@@ -160,7 +161,7 @@ class ChatGuardian(ABC):
         Self validate whether the current configurations are valid
         """
         return await self._guard_processor.check_connection(
-            endpoint=self._endpoint_identifier,
+            endpoint_identifier=self._endpoint_identifier,
             cache=True,
         )
 
@@ -220,6 +221,10 @@ class ChatGuardian(ABC):
     ) -> GuardableItems:
         """
         Validate the given completion messages alongside the input, then return back the suggested ones, or GuardrailsException when critical violations detected.
+
+        :param prompt_messages: list of original prompt messages
+        :param completion_messages: list of completion messages to be verified
+        :param chat_id: optional uuid to be used for traceability
         """
         completion = GuardableMessage.parse_all(completion_messages)
         if all([len(msg.content.strip()) == 0 for msg in completion]):
@@ -275,6 +280,7 @@ class ChatGuardrails(ChatGuardian):
         logging_level: int | str = logging.INFO,
         _batch_size: int = 0,
         _queue_time: float = 1.0,
+        _loop: asyncio.AbstractEventLoop | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -341,8 +347,11 @@ class ChatGuardrails(ChatGuardian):
             )
             self._batch_control = {"batch_size": _batch_size, "queue_time": _queue_time}
         try:
-            if asyncio.get_running_loop() is not None:
-                self._executor = asyncio
+            if _loop is None:
+                if asyncio.get_running_loop() is not None:
+                    self._executor = asyncio
+            else:
+                self._executor = ThreadExecutor(loop=_loop)  # type: ignore
         except RuntimeError:
             self._log.info("No running loop, thread executor will be adapted")
             self._executor = ThreadExecutor()  # type: ignore
@@ -353,7 +362,10 @@ class ChatGuardrails(ChatGuardian):
         chat_id: uuid.UUID | None = None,
     ) -> None:
         """
-        Observe the input in the background
+        Observe the prompt messages in the background
+
+        :param prompt_messages: the prompt messages to be observed
+        :param chat_id: optional chat id for later traceability
         """
         (req_id, prompt) = self._cache_prompt(
             prompt_messages=prompt_messages,
@@ -361,8 +373,10 @@ class ChatGuardrails(ChatGuardian):
         )
         if all([len(msg.content.strip()) == 0 for msg in prompt]):
             # skip on empty request
+            self._log.debug(f"skipped observing input")
             return
 
+        self._log.debug(f"observing input: {req_id}")
         self._executor.ensure_future(
             self._observing_processor.process_request(
                 body=self._prompt_hooks.before(prompt),
@@ -381,11 +395,16 @@ class ChatGuardrails(ChatGuardian):
         chat_id: uuid.UUID | None = None,
     ) -> None:
         """
-        Observe the output in the background
+        Observe the completion messages in the background
+
+        :param prompt_messages: the original prompt messages
+        :param completion_messages: the completion messages to be observed
+        :param chat_id: optional chat id for later traceability
         """
         completion = GuardableMessage.parse_all(completion_messages)
         if all([len(msg.content.strip()) == 0 for msg in completion]):
             # skip on empty request
+            self._log.debug(f"skipped observing output")
             return
 
         if chat_id is None:
@@ -394,6 +413,7 @@ class ChatGuardrails(ChatGuardian):
             req_id = str(chat_id)
             prompt = GuardableMessage.parse_all(prompt_messages)
 
+        self._log.debug(f"observing output: {req_id}")
         self._executor.ensure_future(
             self._observing_processor.process_response(
                 body=self._completion_hooks.before(completion),
@@ -411,7 +431,7 @@ class ChatGuardrails(ChatGuardian):
         Flush whatever currently queued in batcher
         """
         self._id_cache.clear()
-        self._executor.ensure_future(
+        self._executor.run(
             self._observing_processor.close(timeout=timeout),
         )
         # restart batcher

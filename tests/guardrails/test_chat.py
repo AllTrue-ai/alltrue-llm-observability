@@ -14,6 +14,7 @@
 #
 
 import asyncio
+import logging
 import os
 import time
 import uuid
@@ -53,11 +54,13 @@ async def guardrails(openai_test_ports, test_endpoint_identifier):
         alltrue_api_key="dummy-app-key",
         alltrue_endpoint_identifier=test_endpoint_identifier,
         alltrue_customer_id="customer-id",
+        logging_level=logging.DEBUG,
+        _loop=asyncio.get_running_loop(),
         _batch_size=4,
-        _queue_time=0.25,
+        _queue_time=1,
         _keep_alive=False,
     )
-    assert _guardrails.validate()
+    assert await _guardrails.validate() == True
     yield _guardrails
     _guardrails.flush(5)
     await asyncio.sleep(2)
@@ -144,4 +147,4 @@ def test_message_observing(
             messages,
             [f"reject '{TEST_PROMPT_CANARY}'"],
         )
-        time.sleep(0.05 * i)
+        time.sleep(0.1 * i)
