@@ -41,7 +41,7 @@ jobs:
           pip install pytest-md-report
           pre-commit autoupdate --repo https://github.com/pre-commit/pre-commit-hooks
           pre-commit run --all-files
-          pytest -m "not skip_on_aws" --maxfail=5 --durations=10 --md-report --md-report-flavor github --md-report-output test_report.md
+          pytest -m "not skip_on_remote" --maxfail=5 --durations=10 --md-report --md-report-flavor github --md-report-output test_report.md
       - name: Report
         uses: marocchino/sticky-pull-request-comment@v2
         if: ${{ hashFiles('test_report.md') != '' }}
