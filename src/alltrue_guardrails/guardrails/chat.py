@@ -74,12 +74,18 @@ class GuardableMessage(BaseModel):
         return _msg_key([msg.content for msg in parsed]), parsed
 
 
-Guardable = GuardableMessage | dict[str, str] | str
+class GuardedChat(BaseModel):
+    id: str
+    prompt_messages: list[GuardableMessage]
+    completion_messages: list[GuardableMessage]
 
 
 class _GuardTrailHooks(BaseModel):
     before: Callable[[I], str] = json.dumps
     after: Callable[[str], I] = json.loads
+
+
+Guardable = GuardableMessage | dict[str, str] | str
 
 
 class ChatGuardian(ABC):
@@ -124,7 +130,7 @@ class ChatGuardian(ABC):
         )
         self._prompt_hooks = _GuardTrailHooks()
         self._completion_hooks = _GuardTrailHooks()
-        self._rid_cache: dict[str, str] = dict()
+        self._id_cache: dict[str, str] = dict()
 
     def register_prompt_hooks(
         self, before: Callable[[I], str], after: Callable[[str], I]
@@ -140,25 +146,45 @@ class ChatGuardian(ABC):
         self,
         prompt_messages: list[Guardable],
         req_id: str = str(uuid.uuid4()),
-    ) -> tuple[str, list[Guardable]]:
+    ) -> tuple[str, list[GuardableMessage]]:
         (hash_key, prompts) = GuardableMessage.hash(prompt_messages)
-        if len(self._rid_cache) >= 20:
-            self._rid_cache.pop(next(iter(self._rid_cache)))
-        self._rid_cache[hash_key] = req_id
+        if len(self._id_cache) >= 20:
+            self._id_cache.pop(next(iter(self._id_cache)))
+        self._id_cache[hash_key] = req_id
         return req_id, prompts  # type: ignore
 
     def _pop_prompt(
         self, prompt_messages: list[Guardable]
-    ) -> tuple[str, list[Guardable]]:
+    ) -> tuple[str, list[GuardableMessage]]:
         (hash_key, prompts) = GuardableMessage.hash(prompt_messages)
-        req_id = self._rid_cache.pop(hash_key, str(uuid.uuid4()))
+        req_id = self._id_cache.pop(hash_key, str(uuid.uuid4()))
         return req_id, prompts  # type: ignore
 
-    async def guard_input(self, prompt_messages: list[Guardable]) -> list[Guardable]:
+    async def validate(self) -> bool:
+        """
+        Self validate whether the current configurations are valid
+        """
+        return await self._guard_processor.check_connection(
+            endpoint=self._endpoint_identifier,
+            cache=True,
+        )
+
+    async def guard_input(
+        self,
+        prompt_messages: list[Guardable],
+        chat_id: uuid.UUID | None = None,
+    ) -> list[Guardable]:
         """
         Validate the given prompt messages then return back the suggested ones, or GuardrailsException when critical violations detected.
+
+        :param prompt_messages: list of Guardables prompt messages
+        :param chat_id: optional uuid to be used for traceability
         """
-        (req_id, prompt) = self._cache_prompt(prompt_messages)
+        (req_id, prompt) = self._cache_prompt(
+            prompt_messages=prompt_messages,
+            **({} if chat_id is None else {"req_id": str(chat_id)}),
+        )
+
         processed_result = await self._guard_processor.process_request(
             body=self._prompt_hooks.before(prompt),
             request_id=req_id,
@@ -181,12 +207,20 @@ class ChatGuardian(ABC):
             return prompt
 
     async def guard_output(
-        self, prompt_messages: list[Guardable], completion_messages: list[Guardable]
+        self,
+        prompt_messages: list[Guardable],
+        completion_messages: list[Guardable],
+        chat_id: uuid.UUID | None = None,
     ) -> list[Guardable]:
         """
         Validate the given completion messages alongside the input, then return back the suggested ones, or GuardrailsException when critical violations detected.
         """
-        (req_id, prompt) = self._pop_prompt(prompt_messages)
+        if chat_id is None:
+            (req_id, prompt) = self._pop_prompt(prompt_messages)
+        else:
+            req_id = str(chat_id)
+            prompt = GuardableMessage.parse_all(prompt_messages)
+
         processed_result = await self._guard_processor.process_response(
             body=self._completion_hooks.before(completion_messages),
             original_request_input=self._prompt_hooks.before(prompt),
@@ -297,11 +331,18 @@ class ChatGuardrails(ChatGuardian):
             self._log.info("No running loop, thread executor will be adapted")
             self._executor = ThreadExecutor()  # type: ignore
 
-    def observe_input(self, prompt_messages: list[Guardable]) -> None:
+    def observe_input(
+        self,
+        prompt_messages: list[Guardable],
+        chat_id: uuid.UUID | None = None,
+    ) -> None:
         """
         Observe the input in the background
         """
-        (req_id, prompt) = self._cache_prompt(prompt_messages)
+        (req_id, prompt) = self._cache_prompt(
+            prompt_messages=prompt_messages,
+            **({} if chat_id is None else {"req_id": str(chat_id)}),
+        )
         self._executor.ensure_future(
             self._observing_processor.process_request(
                 body=self._prompt_hooks.before(prompt),
@@ -317,11 +358,16 @@ class ChatGuardrails(ChatGuardian):
         self,
         prompt_messages: list[Guardable],
         completion_messages: list[Guardable],
+        chat_id: uuid.UUID | None = None,
     ) -> None:
         """
         Observe the output in the background
         """
-        (req_id, prompt) = self._pop_prompt(prompt_messages)
+        if chat_id is None:
+            (req_id, prompt) = self._pop_prompt(prompt_messages)
+        else:
+            req_id = str(chat_id)
+            prompt = GuardableMessage.parse_all(prompt_messages)
         self._executor.ensure_future(
             self._observing_processor.process_response(
                 body=self._completion_hooks.before(completion_messages),
@@ -338,7 +384,7 @@ class ChatGuardrails(ChatGuardian):
         """
         Flush whatever currently queued in batcher
         """
-        self._rid_cache.clear()
+        self._id_cache.clear()
         self._executor.ensure_future(
             self._observing_processor.close(timeout=timeout),
         )
