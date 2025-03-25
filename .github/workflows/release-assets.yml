@@ -8,34 +8,22 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 jobs:
-  aws-non-concurrent-build-job:
+  build-release-assets:
     timeout-minutes: 35
-    runs-on:
-      labels: [self-hosted, linux]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup
-        run: |
-          eval $(ssh-agent -s)
-          ssh-add ~/.ssh/test-machine-ssh
-          python3.11 -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
-          pip install -e.[full]
-      - name: Check
-        run: |
-          source venv/bin/activate
-          pre-commit run --all-files
-      - name: Test
-        run: |
-          source venv/bin/activate
-          pytest -m "not skip_on_aws" --maxfail=5 --durations=10
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Build
         run: |
-          source venv/bin/activate
+          pip install -e.[full]
+          pre-commit run --all-files
+          pytest -m "not skip_on_remote" --maxfail=5 --durations=10
           python -m build
       - name: Upload
         uses: softprops/action-gh-release@v2

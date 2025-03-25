@@ -84,7 +84,7 @@ def openai_api_key():
     return "dummy-api-key"
 
 
-@pytest.mark.skip_on_aws
+@pytest.mark.skip_on_remote
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "openai_client",

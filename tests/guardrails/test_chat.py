@@ -67,7 +67,7 @@ def openai_api_key():
     return "dummy-api-key"
 
 
-@pytest.mark.skip_on_aws
+@pytest.mark.skip_on_remote
 @pytest.mark.asyncio
 async def test_guardrails(
     openai_api_key,
@@ -104,7 +104,7 @@ async def test_guardrails(
     await asyncio.sleep(0.5)
 
 
-@pytest.mark.skip_on_aws
+@pytest.mark.skip_on_remote
 def test_guardrails_observing_only(
     openai_api_key,
     openai_test_ports: tuple[int, int],
