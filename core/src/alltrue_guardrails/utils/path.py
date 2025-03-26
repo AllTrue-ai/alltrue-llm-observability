@@ -13,9 +13,7 @@
 #  limitations under the License.
 #
 
-from .logfire import configure_logfire  # isort:skip
-
-logfire = configure_logfire()  # isort:skip
+from .logfire import configure_logfire
 
 import logging
 import re
@@ -28,6 +26,7 @@ from typing_extensions import deprecated
 from .config import get_or_default
 
 HEADERS = TypeVar("HEADERS", bound=MutableMapping)
+logfire = configure_logfire()
 
 
 def _get_header_key(attr: str) -> str:

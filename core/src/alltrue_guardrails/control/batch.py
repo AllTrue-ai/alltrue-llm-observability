@@ -171,7 +171,7 @@ class BatchRuleProcessor(RuleProcessor):
                             if body
                             else "{}"
                         ),
-                        "message": f"Reqeust batched",
+                        "message": "Reqeust batched",
                     }
                 ),
             )

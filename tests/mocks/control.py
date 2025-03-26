@@ -76,7 +76,7 @@ def _handle_response_payload(data: dict) -> dict:
     if TEST_PROMPT_CANARY in txt:
         if "rewrite-reply" in txt:
             new_txt = txt.replace(TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION)
-            new_txt += f' [{data["endpoint_identifier"]}]'
+            new_txt += f" [{data['endpoint_identifier']}]"
             js_body["choices"][-1]["message"]["content"] = new_txt
         elif "disallow-reply" in txt:
             js_body["choices"][-1]["message"]["content"] = "[REMOVED]"

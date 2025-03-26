@@ -60,7 +60,7 @@ async def guardrails(openai_test_ports, test_endpoint_identifier):
         _queue_time=1,
         _keep_alive=False,
     )
-    assert await _guardrails.validate() == True
+    assert await _guardrails.validate()
     yield _guardrails
     _guardrails.flush(5)
     await asyncio.sleep(2)
@@ -107,7 +107,7 @@ async def test_message_guard(
     api_response = await httpx.AsyncClient(
         base_url=f"http://localhost:{proxy_port}/v1",
     ).post(
-        url=f"/chat/completions",
+        url="/chat/completions",
         json={
             "model": "gpt-3.5-turbo",
             "messages": [{"content": msg, "role": "user"} for msg in guarded_input],

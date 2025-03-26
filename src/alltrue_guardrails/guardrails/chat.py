@@ -373,7 +373,7 @@ class ChatGuardrails(ChatGuardian):
         )
         if all([len(msg.content.strip()) == 0 for msg in prompt]):
             # skip on empty request
-            self._log.debug(f"skipped observing input")
+            self._log.debug("skipped observing input")
             return
 
         self._log.debug(f"observing input: {req_id}")
@@ -404,7 +404,7 @@ class ChatGuardrails(ChatGuardian):
         completion = GuardableMessage.parse_all(completion_messages)
         if all([len(msg.content.strip()) == 0 for msg in completion]):
             # skip on empty request
-            self._log.debug(f"skipped observing output")
+            self._log.debug("skipped observing output")
             return
 
         if chat_id is None:

@@ -13,10 +13,7 @@
 #  limitations under the License.
 #
 
-from ..utils.logfire import configure_logfire  # isort:skip
-
-logfire = configure_logfire()  # isort:skip
-
+from ..utils.logfire import configure_logfire
 import functools
 import json
 import logging
@@ -32,7 +29,9 @@ from ..http import HttpMethod, HttpStatus
 from ..http.cache import CachableEndpoint
 from . import AlltrueAPIClient
 
+
 LLM_API_KEY_PATTERN = re.compile(r"(x-[\w\-]*key|[aA]uthorization)$")
+logfire = configure_logfire()  # isort:skip
 
 
 def _parse_url(
@@ -227,13 +226,13 @@ class RuleProcessor(AlltrueAPIClient):
             )
         except (JSONDecodeError, KeyError) as e:
             self.log.exception(
-                f"Failed to parse Control Plane input API response",
+                "Failed to parse Control Plane input API response",
                 exc_info=e,
             )
             return None
         except Exception as e:
             self.log.exception(
-                f"Failed to call Control Plane input API",
+                "Failed to call Control Plane input API",
                 exc_info=e,
             )
             return None
@@ -324,13 +323,13 @@ class RuleProcessor(AlltrueAPIClient):
             )
         except (JSONDecodeError, KeyError) as e:
             self.log.exception(
-                f"Failed to parse Control Plane output API response",
+                "Failed to parse Control Plane output API response",
                 exc_info=e,
             )
             return None
         except Exception as e:
             self.log.exception(
-                f"Failed to call Control Plane output API",
+                "Failed to call Control Plane output API",
                 exc_info=e,
             )
             return None
