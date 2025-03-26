@@ -14,8 +14,10 @@
 #
 
 import asyncio
+import logging
 import os
 import time
+import uuid
 
 import httpx
 import pytest
@@ -47,17 +49,19 @@ def openai_test_ports():
 @pytest.fixture(scope="module", autouse=True)
 async def guardrails(openai_test_ports, test_endpoint_identifier):
     (api_port, proxy_port) = openai_test_ports
-    os.environ["CONFIG_HTTP_KEEPALIVE"] = "none"
     _guardrails = ChatGuardrails(
         alltrue_api_url=f"http://localhost:{api_port}",
         alltrue_api_key="dummy-app-key",
         alltrue_endpoint_identifier=test_endpoint_identifier,
         alltrue_customer_id="customer-id",
+        logging_level=logging.DEBUG,
+        _loop=asyncio.get_running_loop(),
         _batch_size=4,
-        _queue_time=0.25,
+        _queue_time=1,
+        _keep_alive=False,
     )
+    assert await _guardrails.validate()
     yield _guardrails
-    os.environ["CONFIG_HTTP_KEEPALIVE"] = "default"
     _guardrails.flush(5)
     await asyncio.sleep(2)
 
@@ -69,7 +73,25 @@ def openai_api_key():
 
 @pytest.mark.skip_on_remote
 @pytest.mark.asyncio
-async def test_guardrails(
+async def test_empty_messages(guardrails):
+    messages = ["", ""]
+    assert messages == await guardrails.guard_input(messages)
+    assert messages == await guardrails.guard_output(messages, messages)
+
+
+@pytest.mark.skip_on_remote
+@pytest.mark.asyncio
+async def test_self_generated_chat_id(guardrails):
+    chat_id = uuid.uuid4()
+    messages = ["randon_string"]
+    await guardrails.guard_input(messages, chat_id=chat_id)
+
+    assert str(chat_id) in guardrails._id_cache.values()
+
+
+@pytest.mark.skip_on_remote
+@pytest.mark.asyncio
+async def test_message_guard(
     openai_api_key,
     openai_test_ports: tuple[int, int],
     test_endpoint_identifier,
@@ -85,27 +107,31 @@ async def test_guardrails(
     api_response = await httpx.AsyncClient(
         base_url=f"http://localhost:{proxy_port}/v1",
     ).post(
-        url=f"/chat/completions",
+        url="/chat/completions",
         json={
             "model": "gpt-3.5-turbo",
-            "messages": [msg.model_dump() for msg in guarded_input],
+            "messages": [{"content": msg, "role": "user"} for msg in guarded_input],
         },
     )
 
     # call guard_output to process the completion messages
     guarded_output = await guardrails.guard_output(
         messages,
-        [c.get("message", {}) for c in api_response.json().get("choices", [])],
+        [
+            c.get("message", {}).get("content", "")
+            for c in api_response.json().get("choices", [])
+        ],
     )
 
-    assert TEST_PROMPT_CANARY not in guarded_output[0].content
-    assert TEST_PROMPT_SUBSTITUTION in guarded_output[0].content
-    assert test_endpoint_identifier in guarded_output[0].content
+    assert TEST_PROMPT_CANARY not in guarded_output[0]
+    assert TEST_PROMPT_SUBSTITUTION in guarded_output[0]
+    assert test_endpoint_identifier in guarded_output[0]
     await asyncio.sleep(0.5)
 
 
 @pytest.mark.skip_on_remote
-def test_guardrails_observing_only(
+@pytest.mark.asyncio
+def test_message_observing(
     openai_api_key,
     openai_test_ports: tuple[int, int],
     test_endpoint_identifier,
@@ -121,4 +147,4 @@ def test_guardrails_observing_only(
             messages,
             [f"reject '{TEST_PROMPT_CANARY}'"],
         )
-        time.sleep(0.05 * i)
+        time.sleep(0.1 * i)

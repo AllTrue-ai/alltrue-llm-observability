@@ -32,7 +32,7 @@ def pdm_build_initialize(context):
     if os.path.exists(core_project):
         with open(core_project, "rb") as core_project_file:
             core_project_config = tomllib.load(core_project_file)
-            if not "dependencies" in context.config.metadata:
+            if "dependencies" not in context.config.metadata:
                 context.config.metadata["dependencies"] = []
             context.config.metadata["dependencies"] = list(
                 filter(

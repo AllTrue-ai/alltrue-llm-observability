@@ -63,7 +63,7 @@ async def openai_client(
         blocking=blocking,
         logging_level="DEBUG",
         _batch_size=4,
-        _queue_time=0.25,
+        _queue_time=0.5,
     )
     observer.register()
     _cls = request.param
@@ -121,4 +121,4 @@ async def test_openai(
         assert (
             test_endpoint_identifier not in completion.choices[0].message.content
         ) != blocking
-        await asyncio.sleep(0.1 * i)
+        await asyncio.sleep(0.05 * i)

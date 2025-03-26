@@ -13,10 +13,7 @@
 #  limitations under the License.
 #
 
-from ..utils.logfire import configure_logfire  # isort:skip
-
-logfire = configure_logfire()  # isort:skip
-
+from ..utils.logfire import configure_logfire
 import functools
 import json
 import logging
@@ -32,7 +29,9 @@ from ..http import HttpMethod, HttpStatus
 from ..http.cache import CachableEndpoint
 from . import AlltrueAPIClient
 
+
 LLM_API_KEY_PATTERN = re.compile(r"(x-[\w\-]*key|[aA]uthorization)$")
+logfire = configure_logfire()  # isort:skip
 
 
 def _parse_url(
@@ -104,7 +103,7 @@ class RuleProcessor(AlltrueAPIClient):
             )
         )
 
-    @logfire.instrument("Calling control plane endpoint {endpoint=}")
+    @logfire.instrument("Calling LLM Chat API: {endpoint=}")
     async def _chat(
         self,
         endpoint: str,
@@ -121,7 +120,6 @@ class RuleProcessor(AlltrueAPIClient):
             cache=cache,
         )
 
-    @logfire.instrument("Checking connection to control plane")
     async def check_connection(
         self,
         endpoint_identifier: str,
@@ -148,7 +146,6 @@ class RuleProcessor(AlltrueAPIClient):
             return False
         return True
 
-    @logfire.instrument()
     async def process_request(
         self,
         *,
@@ -229,18 +226,17 @@ class RuleProcessor(AlltrueAPIClient):
             )
         except (JSONDecodeError, KeyError) as e:
             self.log.exception(
-                f"Failed to parse Control Plane input API response",
+                "Failed to parse Control Plane input API response",
                 exc_info=e,
             )
             return None
         except Exception as e:
             self.log.exception(
-                f"Failed to call Control Plane input API",
+                "Failed to call Control Plane input API",
                 exc_info=e,
             )
             return None
 
-    @logfire.instrument()
     async def process_response(
         self,
         *,
@@ -327,13 +323,13 @@ class RuleProcessor(AlltrueAPIClient):
             )
         except (JSONDecodeError, KeyError) as e:
             self.log.exception(
-                f"Failed to parse Control Plane output API response",
+                "Failed to parse Control Plane output API response",
                 exc_info=e,
             )
             return None
         except Exception as e:
             self.log.exception(
-                f"Failed to call Control Plane output API",
+                "Failed to call Control Plane output API",
                 exc_info=e,
             )
             return None

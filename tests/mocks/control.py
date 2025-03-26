@@ -61,6 +61,7 @@ async def chat_batch_request(request: Request, proxy_type: str):
     data = await request.json()
     status = 0
     processed = []
+    print(f"processing {len(data['requests'])} input batches")
     for request in data["requests"]:
         result = _handle_request_payload(request)
         processed.append(result["processed_input"])
@@ -75,7 +76,7 @@ def _handle_response_payload(data: dict) -> dict:
     if TEST_PROMPT_CANARY in txt:
         if "rewrite-reply" in txt:
             new_txt = txt.replace(TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION)
-            new_txt += f' [{data["endpoint_identifier"]}]'
+            new_txt += f" [{data['endpoint_identifier']}]"
             js_body["choices"][-1]["message"]["content"] = new_txt
         elif "disallow-reply" in txt:
             js_body["choices"][-1]["message"]["content"] = "[REMOVED]"
@@ -94,6 +95,7 @@ async def chat_batch_response(request: Request, proxy_type: str):
     data = await request.json()
     status = 0
     processed = []
+    print(f"processing {len(data['requests'])} output batches")
     for request in data["requests"]:
         result = _handle_response_payload(request)
         processed.append(result["processed_output"])

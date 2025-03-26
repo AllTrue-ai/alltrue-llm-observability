@@ -13,10 +13,7 @@
 #  limitations under the License.
 #
 
-from ..utils.logfire import configure_logfire  # isort:skip
-
-logfire = configure_logfire()  # isort:skip
-
+from ..utils.logfire import configure_logfire
 import logging
 from abc import ABC
 
@@ -28,6 +25,8 @@ from ..utils.config import AlltrueConfig
 from ._internal.token import TokenRetriever
 
 MAX_TOKEN_REFRESH_RETRIES = 3
+
+logfire = configure_logfire()
 
 
 class AlltrueAPIClient(ABC):
@@ -133,5 +132,5 @@ class AlltrueAPIClient(ABC):
             )
             return httpx.Response(
                 status_code=HttpStatus.UNAUTHORIZED,
-                content=f"Too many token refresh errors. Giving up.",
+                content="Too many token refresh errors. Giving up.",
             )

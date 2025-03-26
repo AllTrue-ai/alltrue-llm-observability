@@ -32,9 +32,9 @@ class LogfireMock:
             _p = r"(\s+\([\w\{\}\s\=\(\),\"\:\[\]\'\-\#\.\/\<\>\\\?\*\%]+\s+)(\d+\.\d+s)?\s+\|"
             _r = r" | \2"
             _log = self.log.log
-            self.log.log = lambda l, m, *args, **kwargs: _log(
-                l,
-                f"{re.sub(_p, _r, m)}".replace("<>|", "<> | "),
+            self.log.log = lambda lv, msg, *args, **kwargs: _log(
+                lv,
+                f"{re.sub(_p, _r, msg)}".replace("<>|", "<> | "),
                 *args,
                 **kwargs,
             )

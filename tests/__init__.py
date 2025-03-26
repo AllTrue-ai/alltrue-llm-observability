@@ -44,7 +44,7 @@ def init_servers(
     Launching a mock Alltrue API server as well as a LLM API server for further testing.
     """
     Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
-    for p in Path(LOG_DIR).glob(f"test_*.txt"):
+    for p in Path(LOG_DIR).glob("test_*.txt"):
         p.unlink()
     for p in Path(TESTS_DIR).glob(os.path.join("_mitmproxy", "*")):
         shutil.rmtree(str(p))
@@ -63,7 +63,7 @@ def init_servers(
     control_process = Popen(
         [
             "uvicorn",
-            f"tests.mocks.control:app",
+            "tests.mocks.control:app",
             "--port",
             f"{control_port}",
         ],
