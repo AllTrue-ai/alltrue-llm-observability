@@ -18,7 +18,6 @@ Alltrue Guardrails provides monitoring, observability, and guardrails for Large 
 
 ```shell
 # Install directly from GitHub
-pip install git+ssh://git@github.com/AllTrue-ai/alltrue-llm-observability.git#subdirectory=core
 pip install git+ssh://git@github.com/AllTrue-ai/alltrue-llm-observability.git
 
 

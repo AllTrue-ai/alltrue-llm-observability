@@ -36,14 +36,13 @@ openai-observers = [
 testing = [
     "fastapi~=0.111.1",
     "mitmproxy~=11.0.2",
-    "pytest-dependency~=0.6.0",
+    "alltrue-guardrails-core[testing] @ file:///${PROJECT_ROOT}/core",
 ]
 dev = [
     "build",
-    "pre-commit",
+    "pre-commit>=4.2.0",
 ]
 full = [
-    "alltrue-guardrails-core[testing] @ file:///${PROJECT_ROOT}/core",
     "alltrue-guardrails[openai-observers]",
     "alltrue-guardrails[testing]",
     "alltrue-guardrails[dev]",
@@ -54,9 +53,14 @@ source = "file"
 path = "src/version.py"
 
 [tool.pdm.build]
-includes = ["src/alltrue_guardrails", "src/py.typed"]
 custom-hook = "src/build.py"
+includes = ["src/alltrue_guardrails", "src/py.typed"]
 excludes = ["**/tests/*"]
+
+[tool.pdm.scripts]
+precommit = "pre-commit run --all-files"
+prerelease = "semantic-release -v version --prerelease --push --no-changelog"
+prerelease-dry = "semantic-release -vv --noop version --prerelease --push --no-changelog --print"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -68,7 +72,7 @@ addopts = [
 ]
 asyncio_mode = "auto"
 markers = [
-    "skip_on_aws: marks tests to be skipped on AWS",
+    "skip_on_remote: marks tests to be skipped on remote build server",
 ]
 pythonpath = [
     "src",
@@ -90,7 +94,7 @@ follow_imports_for_stubs = true
 version_variables = ["src/version.py:__version__"]
 
 [tool.semantic_release.remote]
-token = { env = "GITHUB_TOKEN" }
+ignore_token_for_push = true
 
 [tool.semantic_release.branches.main]
 match = "(main|release)"

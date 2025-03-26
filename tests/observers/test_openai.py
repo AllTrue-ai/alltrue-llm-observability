@@ -21,7 +21,7 @@ import pytest
 from openai import AsyncOpenAI, OpenAI
 
 from alltrue_guardrails.observers.openai import OpenAIObserver
-from tests import TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION, TESTS_DIR, init_servers
+from .. import TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION, TESTS_DIR, init_servers
 
 
 @pytest.fixture(scope="module")
