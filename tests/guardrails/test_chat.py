@@ -88,6 +88,10 @@ async def test_self_generated_chat_id(guardrails):
 
     assert str(chat_id) in guardrails._id_cache.values()
 
+    traces = await guardrails.trace(chat_id)
+    assert traces
+    assert len(traces.get("input_process", {}).get("actions", [])) > 0
+
 
 @pytest.mark.skip_on_remote
 @pytest.mark.asyncio

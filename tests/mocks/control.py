@@ -15,6 +15,7 @@
 #
 
 import json
+from datetime import datetime, UTC
 
 from fastapi import FastAPI, Request
 
@@ -110,4 +111,27 @@ async def get_jwt_token(request: Request):
     )
     return {
         "access_token": "random-token",
+    }
+
+
+@app.get("/v1/llm-firewall/chat/customer/{customer_id}/session/{session_id}")
+async def get_processed_session(customer_id: str, session_id: str):
+    print(f"Get session for customer {customer_id} and session {session_id}")
+    return {
+        "llm_provider_name": "any",
+        "llm_model_name": None,
+        "input_request": {
+            "created_at": datetime.now(UTC),
+            "input_actions": [
+                {
+                    "action_json": json.dumps(
+                        {
+                            "action_type": "BLOCK",
+                            "action_tag": "PIIRule-COMPANY NAME",
+                            "message": "AllTrue LLM Firewall: Prompt blocked due to PII",
+                        }
+                    )
+                }
+            ],
+        },
     }

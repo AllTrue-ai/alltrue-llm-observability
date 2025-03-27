@@ -69,9 +69,14 @@ def _gen_cache_key(
 
 
 class ProcessResult(NamedTuple):
-    new_body: str
+    content: str
     status_code: int
     message: str | None = None
+
+    @property
+    def new_body(self) -> str:
+        # for backward compatibility
+        return self.content
 
 
 class RuleProcessor(AlltrueAPIClient):
@@ -220,7 +225,7 @@ class RuleProcessor(AlltrueAPIClient):
                 body = json.dumps(body)
 
             return ProcessResult(
-                new_body=body,
+                content=body,
                 status_code=reply_body_json["status_code"],
                 message=reply_body_json.get("message"),
             )
@@ -317,7 +322,7 @@ class RuleProcessor(AlltrueAPIClient):
             if isinstance(body, dict):
                 body = json.dumps(body)
             return ProcessResult(
-                new_body=body,
+                content=body,
                 status_code=reply_body_json["status_code"],
                 message=reply_body_json.get("message"),
             )
@@ -333,6 +338,90 @@ class RuleProcessor(AlltrueAPIClient):
                 exc_info=e,
             )
             return None
+
+    async def process_prompt(
+        self,
+        request_id: str,
+        endpoint_identifier: str,
+        prompt_input: str,
+        prompt_output: str | None = None,
+        quick_response: bool = True,
+        **kwargs,
+    ):
+        """
+        Shortcut function to process prompt input and output with minimum required parameters
+        """
+        headers = kwargs.pop(
+            "headers",
+            [
+                ("Content-Type", "application/json"),
+            ],
+        )
+        if not quick_response:
+            headers.append(("x-alltrue-llm-cache-control", "no-cache"))
+        if prompt_output is None:
+            return await self.process_request(
+                request_id=request_id,
+                endpoint_identifier=endpoint_identifier,
+                body=prompt_input,
+                headers=headers,
+                **kwargs,
+            )
+        else:
+            return await self.process_response(
+                request_id=request_id,
+                endpoint_identifier=endpoint_identifier,
+                body=prompt_output,
+                original_request_input=prompt_input,
+                request_headers=headers,
+                **kwargs,
+            )
+
+    async def get_processed_traces(
+        self,
+        request_id: str,
+    ):
+        """
+        Get the processed traces of the particular request session
+        """
+        reply = await self._chat(
+            endpoint=f"/customer/{self.config.customer_id}/session/{request_id}",
+            method="GET",
+            cache=False,
+        )
+        if HttpStatus.is_success(reply.status_code):
+            try:
+                session = json.loads(reply.text)
+                content = {
+                    "id": request_id,
+                    "llm_provider_name": session.get("llm_provider_name"),
+                    "llm_model_name": session.get("llm_model_name"),
+                }
+                for req_type in ["input", "output"]:
+                    req = session.get(f"{req_type}_request")
+                    if req:
+                        content.update(
+                            {
+                                f"{req_type}_process": {
+                                    "at": req.get("created_at"),
+                                    "actions": [
+                                        json.loads(action.get("action_json", "{}"))
+                                        for action in req.get(f"{req_type}_actions", [])
+                                    ],
+                                }
+                            }
+                        )
+
+                return ProcessResult(
+                    status_code=reply.status_code,
+                    content=json.dumps(content),
+                )
+            except (JSONDecodeError, KeyError) as e:
+                self.log.exception(
+                    "Failed to parse session query response",
+                    exc_info=e,
+                )
+        return None
 
     @property
     async def is_running(self) -> bool:

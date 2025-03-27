@@ -169,12 +169,14 @@ class ChatGuardian(ABC):
         self,
         prompt_messages: GuardableItems,
         chat_id: uuid.UUID | None = None,
+        quick_response: bool = True,
     ) -> GuardableItems:
         """
         Validate the given prompt messages then return back the suggested ones, or GuardrailsException when critical violations detected.
 
         :param prompt_messages: list of prompt messages
         :param chat_id: optional uuid to be used for traceability
+        :param quick_response: whether to return as soon as when the given messages are considered valid
         """
 
         (req_id, prompt) = self._cache_prompt(
@@ -185,13 +187,11 @@ class ChatGuardian(ABC):
             # skip on empty request
             return prompt_messages
 
-        processed = await self._guard_processor.process_request(
-            body=self._prompt_hooks.before(prompt),
+        processed = await self._guard_processor.process_prompt(
             request_id=req_id,
-            headers=[
-                ("Content-Type", "application/json"),
-            ],
             endpoint_identifier=self._endpoint_identifier,
+            prompt_input=self._prompt_hooks.before(prompt),
+            quick_response=quick_response,
         )
         if processed is not None:
             if HttpStatus.is_unauthorized(processed.status_code):
@@ -199,7 +199,7 @@ class ChatGuardian(ABC):
                     message=processed.message or "Invalid messages"
                 )
             (_, new_prompt) = self._cache_prompt(
-                self._prompt_hooks.after(processed.new_body),
+                self._prompt_hooks.after(processed.content),
                 req_id=req_id,
             )
 
@@ -218,6 +218,7 @@ class ChatGuardian(ABC):
         prompt_messages: GuardableItems,
         completion_messages: GuardableItems,
         chat_id: uuid.UUID | None = None,
+        quick_response: bool = True,
     ) -> GuardableItems:
         """
         Validate the given completion messages alongside the input, then return back the suggested ones, or GuardrailsException when critical violations detected.
@@ -225,6 +226,7 @@ class ChatGuardian(ABC):
         :param prompt_messages: list of original prompt messages
         :param completion_messages: list of completion messages to be verified
         :param chat_id: optional uuid to be used for traceability
+        :param quick_response: whether to return as soon as when the given messages are considered valid
         """
         completion = GuardableMessage.parse_all(completion_messages)
         if all([len(msg.content.strip()) == 0 for msg in completion]):
@@ -237,14 +239,12 @@ class ChatGuardian(ABC):
             req_id = str(chat_id)
             prompt = GuardableMessage.parse_all(prompt_messages)
 
-        processed_result = await self._guard_processor.process_response(
-            body=self._completion_hooks.before(completion),
-            original_request_input=self._prompt_hooks.before(prompt),
+        processed_result = await self._guard_processor.process_prompt(
             request_id=req_id,
-            request_headers=[
-                ("Content-Type", "application/json"),
-            ],
             endpoint_identifier=self._endpoint_identifier,
+            prompt_input=self._prompt_hooks.before(prompt),
+            prompt_output=self._completion_hooks.before(completion),
+            quick_response=quick_response,
         )
         if processed_result is not None:
             if HttpStatus.is_unauthorized(processed_result.status_code):
@@ -252,7 +252,7 @@ class ChatGuardian(ABC):
                     message=processed_result.message or "Invalid messages"
                 )
 
-            new_completion = self._completion_hooks.after(processed_result.new_body)
+            new_completion = self._completion_hooks.after(processed_result.content)
             match completion_messages[0]:
                 case r if isinstance(r, str):
                     return [m.content for m in new_completion]
@@ -261,6 +261,17 @@ class ChatGuardian(ABC):
                 case _:
                     return new_completion
         return completion_messages
+
+    async def trace(self, chat_id: uuid.UUID) -> dict | None:
+        """
+        Return the trace of the particular chat process, or None if no match.
+        """
+        result = await self._guard_processor.get_processed_traces(
+            request_id=str(chat_id)
+        )
+        if result is not None and HttpStatus.is_success(result.status_code):
+            return json.loads(result.content)
+        return None
 
 
 class ChatGuardrails(ChatGuardian):
@@ -378,13 +389,11 @@ class ChatGuardrails(ChatGuardian):
 
         self._log.debug(f"observing input: {req_id}")
         self._executor.ensure_future(
-            self._observing_processor.process_request(
-                body=self._prompt_hooks.before(prompt),
+            self._observing_processor.process_prompt(
                 request_id=req_id,
-                headers=[
-                    ("Content-Type", "application/json"),
-                ],
                 endpoint_identifier=self._endpoint_identifier,
+                prompt_input=self._prompt_hooks.before(prompt),
+                quick_response=False,
             )
         )
 
@@ -415,14 +424,12 @@ class ChatGuardrails(ChatGuardian):
 
         self._log.debug(f"observing output: {req_id}")
         self._executor.ensure_future(
-            self._observing_processor.process_response(
-                body=self._completion_hooks.before(completion),
-                original_request_input=self._prompt_hooks.before(prompt),
+            self._observing_processor.process_prompt(
                 request_id=req_id,
-                request_headers=[
-                    ("Content-Type", "application/json"),
-                ],
                 endpoint_identifier=self._endpoint_identifier,
+                prompt_input=self._prompt_hooks.before(prompt),
+                prompt_output=self._completion_hooks.before(completion),
+                quick_response=False,
             )
         )
 
