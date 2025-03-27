@@ -23,7 +23,7 @@ import httpx
 import pytest
 
 from alltrue_guardrails.guardrails.chat import ChatGuardrails
-from tests import TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION, TESTS_DIR, init_servers
+from .. import TEST_PROMPT_CANARY, TEST_PROMPT_SUBSTITUTION, TESTS_DIR, init_servers
 
 
 @pytest.fixture(scope="module")
@@ -130,7 +130,6 @@ async def test_message_guard(
 
 
 @pytest.mark.skip_on_remote
-@pytest.mark.asyncio
 def test_message_observing(
     openai_api_key,
     openai_test_ports: tuple[int, int],

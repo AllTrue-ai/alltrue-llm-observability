@@ -52,7 +52,7 @@ addopts = [
 ]
 asyncio_mode = "auto"
 markers = [
-    "skip_on_aws: marks tests to be skipped on AWS",
+    "skip_on_remote: marks tests to be skipped on remote build server",
 ]
 pythonpath = [
     "src",
