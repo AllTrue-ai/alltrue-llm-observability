@@ -38,7 +38,6 @@ class AlltrueAPIClient(ABC):
         self,
         api_url: str | None = None,
         api_key: str | None = None,
-        customer_id: str | None = None,
         llm_api_provider: str | None = None,
         logging_level: int | str = logging.INFO,
         _timeout: float | None = None,
@@ -56,7 +55,6 @@ class AlltrueAPIClient(ABC):
             self.config = AlltrueConfig(
                 api_url=api_url,
                 api_key=api_key,
-                customer_id=customer_id,
                 llm_api_provider=llm_api_provider,
             )
             self.log.info(

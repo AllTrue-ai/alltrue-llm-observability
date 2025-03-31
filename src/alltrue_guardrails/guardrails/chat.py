@@ -89,7 +89,6 @@ class ChatGuardian(ABC):
         self,
         alltrue_api_url: str | None = None,
         alltrue_api_key: str | None = None,
-        alltrue_customer_id: str | None = None,
         alltrue_endpoint_identifier: str | None = None,
         logging_level: int | str = logging.INFO,
         _llm_api_provider: str = "any",
@@ -112,7 +111,6 @@ class ChatGuardian(ABC):
         )
         self._guard_processor = RuleProcessor(
             llm_api_provider=_llm_api_provider,
-            customer_id=alltrue_customer_id,
             api_url=alltrue_api_url,
             api_key=alltrue_api_key,
             logging_level=logging_level,
@@ -286,7 +284,6 @@ class ChatGuardrails(ChatGuardian):
         self,
         alltrue_api_url: str | None = None,
         alltrue_api_key: str | None = None,
-        alltrue_customer_id: str | None = None,
         alltrue_endpoint_identifier: str | None = None,
         logging_level: int | str = logging.INFO,
         _batch_size: int = 0,
@@ -297,7 +294,6 @@ class ChatGuardrails(ChatGuardian):
         super().__init__(
             alltrue_api_url=alltrue_api_url,
             alltrue_api_key=alltrue_api_key,
-            alltrue_customer_id=alltrue_customer_id,
             alltrue_endpoint_identifier=alltrue_endpoint_identifier,
             logging_level=logging_level,
             _llm_api_provider="openai",

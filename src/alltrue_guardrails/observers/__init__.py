@@ -89,7 +89,6 @@ class BaseObserver:
         self,
         alltrue_api_url: str | None = None,
         alltrue_api_key: str | None = None,
-        alltrue_customer_id: str | None = None,
         alltrue_endpoint_identifier: str | None = None,
         llm_api_provider: str = "any",
         llm_api_url: str | None = None,
@@ -105,7 +104,6 @@ class BaseObserver:
         """
         :param alltrue_api_url: Alltrue API URL, loading from config `CONFIG_API_URL` if not specified.
         :param alltrue_api_key: API key for Alltrue API authentication, loading from config `CONFIG_API_KEY` if not specified.
-        :param alltrue_customer_id: Alltrue API customer ID, loading from config `CONFIG_CUSTOMER_ID` if not specified.
         :param alltrue_endpoint_identifier: default endpoint identifier for later communicate with Alltrue APIs when specified.
         :param llm_api_provider: LLM API provider
         :param llm_api_url: LLM API base URL, giving none to use the default one from LLM API provider when available.
@@ -119,7 +117,6 @@ class BaseObserver:
         self._config = AlltrueConfig(
             api_url=alltrue_api_url,
             api_key=alltrue_api_key,
-            customer_id=alltrue_customer_id,
             llm_api_provider=llm_api_provider,
         )
         self._rule_processor = None
@@ -299,7 +296,6 @@ class BaseObserver:
         if self._batch_control is None:
             self._rule_processor = RuleProcessor(
                 llm_api_provider=self._config.llm_api_provider,
-                customer_id=self._config.customer_id,
                 api_url=self._config.api_url,
                 api_key=self._config.api_key,
                 **self._api_control,
@@ -308,7 +304,6 @@ class BaseObserver:
             self._log.info("Batching enabled")
             self._rule_processor = BatchRuleProcessor(
                 llm_api_provider=self._config.llm_api_provider,
-                customer_id=self._config.customer_id,
                 api_url=self._config.api_url,
                 api_key=self._config.api_key,
                 **self._api_control,

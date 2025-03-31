@@ -114,9 +114,9 @@ async def get_jwt_token(request: Request):
     }
 
 
-@app.get("/v1/llm-firewall/chat/customer/{customer_id}/session/{session_id}")
-async def get_processed_session(customer_id: str, session_id: str):
-    print(f"Get session for customer {customer_id} and session {session_id}")
+@app.get("/v1/llm-firewall/chat/session/{session_id}")
+async def get_processed_session(session_id: str):
+    print(f"Get session for customer session {session_id}")
     return {
         "llm_provider_name": "any",
         "llm_model_name": None,

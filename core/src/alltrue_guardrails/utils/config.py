@@ -42,10 +42,6 @@ def _get_api_url():
     )
 
 
-def _get_customer_id():
-    return get_value(name="customer_id")
-
-
 def _get_api_key():
     return get_value(name="api_key")
 
@@ -62,9 +58,6 @@ def _get_api_provider():
 class AlltrueConfig(BaseModel):
     api_url: Annotated[str | None, BeforeValidator(lambda a: a or _get_api_url())]
     api_key: Annotated[str | None, BeforeValidator(lambda a: a or _get_api_key())]
-    customer_id: Annotated[
-        str | None, BeforeValidator(lambda a: a or _get_customer_id())
-    ]
     llm_api_provider: Annotated[
         str | None, BeforeValidator(lambda a: a or _get_api_provider())
     ]

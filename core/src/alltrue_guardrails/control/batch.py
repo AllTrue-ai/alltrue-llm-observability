@@ -119,7 +119,6 @@ class BatchRuleProcessor(RuleProcessor):
         self,
         api_url: str | None = None,
         api_key: str | None = None,
-        customer_id: str | None = None,
         llm_api_provider: str | None = None,
         logging_level: int | str = logging.INFO,
         batch_size: int = 5,
@@ -129,7 +128,6 @@ class BatchRuleProcessor(RuleProcessor):
         super().__init__(
             api_url=api_url,
             api_key=api_key,
-            customer_id=customer_id,
             llm_api_provider=llm_api_provider,
             logging_level=logging_level,
             **kwargs,
