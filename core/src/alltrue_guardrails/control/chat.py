@@ -31,7 +31,7 @@ from . import AlltrueAPIClient
 
 
 LLM_API_KEY_PATTERN = re.compile(r"(x-[\w\-]*key|[aA]uthorization)$")
-logfire = configure_logfire()  # isort:skip
+logfire = configure_logfire()
 
 
 def _parse_url(
@@ -84,7 +84,6 @@ class RuleProcessor(AlltrueAPIClient):
         self,
         api_url: str | None = None,
         api_key: str | None = None,
-        customer_id: str | None = None,
         llm_api_provider: str | None = None,
         logging_level: int | str = logging.INFO,
         **kwargs,
@@ -92,7 +91,6 @@ class RuleProcessor(AlltrueAPIClient):
         super().__init__(
             api_url=api_url,
             api_key=api_key,
-            customer_id=customer_id,
             llm_api_provider=llm_api_provider,
             logging_level=logging_level,
             **kwargs,
@@ -138,7 +136,6 @@ class RuleProcessor(AlltrueAPIClient):
         reply = await self._chat(
             endpoint=f"/check-connection/{llm_api_provider or self.config.llm_api_provider}",
             body={
-                "customer_id": self.config.customer_id,
                 "endpoint_identifier": endpoint_identifier,
                 "headers": json.dumps(dict(headers) if headers else {}),
             },
@@ -197,7 +194,6 @@ class RuleProcessor(AlltrueAPIClient):
             "headers": headers or [],
             "client_ip": client_ip,
             "client_port": client_port,
-            "customer_id": self.config.customer_id,
             "endpoint_identifier": endpoint_identifier,
             "start_time": start_time,
             **_parse_url(url, scheme=scheme, host=host, port=port),
@@ -294,7 +290,6 @@ class RuleProcessor(AlltrueAPIClient):
             "response_headers": response_headers or [],
             "client_ip": client_ip,
             "client_port": client_port,
-            "customer_id": self.config.customer_id,
             "endpoint_identifier": endpoint_identifier,
             "method": method,
             "start_time": start_time,
@@ -385,7 +380,7 @@ class RuleProcessor(AlltrueAPIClient):
         Get the processed traces of the particular request session
         """
         reply = await self._chat(
-            endpoint=f"/customer/{self.config.customer_id}/session/{request_id}",
+            endpoint=f"/session/{request_id}",
             method="GET",
             cache=False,
         )

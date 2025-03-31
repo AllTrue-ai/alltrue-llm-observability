@@ -53,7 +53,6 @@ async def guardrails(openai_test_ports, test_endpoint_identifier):
         alltrue_api_url=f"http://localhost:{api_port}",
         alltrue_api_key="dummy-app-key",
         alltrue_endpoint_identifier=test_endpoint_identifier,
-        alltrue_customer_id="customer-id",
         logging_level=logging.DEBUG,
         _loop=asyncio.get_running_loop(),
         _batch_size=4,

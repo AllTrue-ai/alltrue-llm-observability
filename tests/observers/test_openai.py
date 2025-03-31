@@ -58,7 +58,6 @@ async def openai_client(
     observer = OpenAIObserver(
         alltrue_api_url=f"http://localhost:{api_port}",
         alltrue_api_key="dummy-app-key",
-        alltrue_customer_id="dummy-customer-id",
         alltrue_endpoint_identifier="dummy-endpoint-identifier",
         blocking=blocking,
         logging_level="DEBUG",
