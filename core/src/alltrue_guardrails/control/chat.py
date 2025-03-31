@@ -400,7 +400,7 @@ class RuleProcessor(AlltrueAPIClient):
                                 f"{req_type}_process": {
                                     "at": req.get("created_at"),
                                     "actions": [
-                                        json.loads(action.get("action_json", "{}"))
+                                        action.get("action_json")
                                         for action in req.get(f"{req_type}_actions", [])
                                     ],
                                 }
