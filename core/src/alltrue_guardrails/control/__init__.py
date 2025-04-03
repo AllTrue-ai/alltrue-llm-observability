@@ -83,6 +83,7 @@ class AlltrueAPIClient(ABC):
         endpoint: str,
         method: HttpMethod = "POST",
         body: dict | None = None,
+        headers: list[tuple[str, str]] | None = None,
         timeout: float | None = None,
         cache: bool = False,
     ) -> httpx.Response:
@@ -91,6 +92,7 @@ class AlltrueAPIClient(ABC):
         :param endpoint: The chat api endpoint
         :param method: The HTTP method to use
         :param body: The original body of the request
+        :param headers: The HTTP headers to use
         :param timeout: timeout setting per request level if given
         :param cache: Should cache the response when sufficient
         :return: HTTPX reply
@@ -109,6 +111,7 @@ class AlltrueAPIClient(ABC):
                     headers={
                         "content-type": "application/json",
                         "Authorization": f"Bearer {token}",
+                        **dict(headers or []),
                     },
                     timeout=timeout,
                     extensions={"force_cache": True}

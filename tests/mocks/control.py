@@ -135,3 +135,11 @@ async def get_processed_session(session_id: str):
             ],
         },
     }
+
+
+@app.post("/v1/ai-usage/quarantine/llm-endpoint")
+async def check_llm_endpoint_quarantine(request: Request):
+    data = await request.json()
+    if data.get("endpoint_identifier", None) == "unsanctioned":
+        return {"sanctioned": False}
+    return {"sanctioned": True}

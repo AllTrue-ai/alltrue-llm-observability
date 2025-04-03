@@ -108,7 +108,7 @@ class ThreadExecutor:
         else:
             self._log(
                 logging.WARNING,
-                "Cannot closed while already closed or still running.",
+                "Cannot close while already closed or still running.",
             )
 
     @property

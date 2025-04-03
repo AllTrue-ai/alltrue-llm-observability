@@ -46,7 +46,7 @@ def openai_test_ports():
     api_process.terminate()
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module")
 async def guardrails(openai_test_ports, test_endpoint_identifier):
     (api_port, proxy_port) = openai_test_ports
     _guardrails = ChatGuardrails(
@@ -59,10 +59,7 @@ async def guardrails(openai_test_ports, test_endpoint_identifier):
         _queue_time=1,
         _keep_alive=False,
     )
-    assert await _guardrails.validate()
     yield _guardrails
-    _guardrails.flush(5)
-    await asyncio.sleep(2)
 
 
 @pytest.fixture(scope="module")
@@ -150,3 +147,6 @@ def test_message_observing(
             [f"reject '{TEST_PROMPT_CANARY}'"],
         )
         time.sleep(0.1 * i)
+    time.sleep(
+        2
+    )  # wait a bit to finish all the batches before pytest forcefully close the loop

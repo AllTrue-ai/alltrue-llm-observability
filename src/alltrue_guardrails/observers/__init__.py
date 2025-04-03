@@ -225,14 +225,15 @@ class BaseObserver:
             request_process_result = await self._handle_request(
                 rtype="input",
                 rid=rid,
-                request_process=self._rule_processor.process_request(
-                    body=request_body,
+                request_process=self._rule_processor.process_prompt(
                     request_id=rid,
+                    prompt_input=request_body,
+                    endpoint_identifier=request.endpoint.endpoint_identifier,
+                    llm_api_provider=request.endpoint.proxy_type,
+                    validation="usage" if self._blocking else "connection",
                     url=request_url,
                     method="POST",
                     headers=request.params,
-                    endpoint_identifier=request.endpoint.endpoint_identifier,
-                    llm_api_provider=request.endpoint.proxy_type,
                 ),
             )
             if self._blocking and request_process_result:
@@ -252,17 +253,18 @@ class BaseObserver:
             response_process_result = await self._handle_request(
                 rtype="output",
                 rid=rid,
-                request_process=self._rule_processor.process_response(
-                    body=self._before_output_process(
+                request_process=self._rule_processor.process_prompt(
+                    request_id=rid,
+                    prompt_output=self._before_output_process(
                         result, request, instance, call_args
                     ),
-                    original_request_input=request_body,
-                    request_id=rid,
-                    url=request_url,
-                    method="POST",
-                    request_headers=request.params,
+                    prompt_input=request_body,
                     endpoint_identifier=request.endpoint.endpoint_identifier,
                     llm_api_provider=request.endpoint.proxy_type,
+                    validation="usage" if self._blocking else "connection",
+                    url=request_url,
+                    method="POST",
+                    headers=request.params,
                 ),
             )
             if self._blocking and response_process_result:

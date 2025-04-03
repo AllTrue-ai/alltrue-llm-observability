@@ -20,7 +20,7 @@ import logging
 import re
 from datetime import UTC, datetime
 from json import JSONDecodeError
-from typing import NamedTuple
+from typing import NamedTuple, Literal
 
 import httpcore
 import httpx
@@ -56,7 +56,14 @@ def _gen_cache_key(
     Cache key composed by api key and url path
     """
     try:
-        headers = json.loads(body.decode("utf-8")).get("headers", [])
+        json_body = json.loads(body.decode("utf-8"))
+        endpoint_identifier = json_body.get("endpoint_identifier", None)
+        if endpoint_identifier is not None:
+            return endpoint_identifier.encode("utf-8")
+
+        headers = json_body.get("headers", [])
+        if len(headers) == 0:
+            headers = json_body.get("llm_api_request", {}).get("request_headers", [])
         for attr, val in dict(
             json.loads(headers) if isinstance(headers, str) else headers
         ).items():
@@ -105,6 +112,52 @@ class RuleProcessor(AlltrueAPIClient):
                 ),
             )
         )
+        self._client.register_cachable(
+            CachableEndpoint(
+                path="/v1/ai-usage/quarantine/llm-endpoint",
+                methods=["POST"],
+                key_generator=functools.partial(
+                    _gen_cache_key,
+                    logger=self.log,
+                ),
+            )
+        )
+
+    @logfire.instrument("Calling AI Usage API")
+    async def check_usage(
+        self,
+        endpoint_identifier: str | None = None,
+        headers: list[tuple[str, str]] | None = None,
+        llm_api_provider: str | None = None,
+        timeout: float = 0.5,
+        cache: bool = False,
+        **kwargs,
+    ) -> bool:
+        """
+        Check if the usage of LLM endpoint is sanctioned
+        """
+        body: dict = {}
+        if endpoint_identifier:
+            body["endpoint_identifier"] = endpoint_identifier
+        elif headers is not None:
+            body["llm_api_request"] = {
+                "provider": llm_api_provider or self.config.llm_api_provider,
+                "request_headers": dict(headers),
+            }
+        else:
+            self.log.warning("Invalid endpoint info for usage check")
+            return False
+
+        response = await super()._request(
+            endpoint="/v1/ai-usage/quarantine/llm-endpoint",
+            body=body,
+            timeout=timeout,
+            cache=cache,
+        )
+        if HttpStatus.is_success(response.status_code):
+            return response.json().get("sanctioned", True)
+        else:
+            return True
 
     @logfire.instrument("Calling LLM Chat API: {endpoint=}")
     async def _chat(
@@ -128,10 +181,12 @@ class RuleProcessor(AlltrueAPIClient):
         endpoint_identifier: str,
         llm_api_provider: str | None = None,
         headers: list[tuple[str, str]] | None = None,
+        timeout: float = 0.5,
         cache: bool = False,
+        **kwargs,
     ) -> bool:
         """
-        Check the given endpoint identifier is valid
+        Check if the LLM endpoint is connectable
         """
         reply = await self._chat(
             endpoint=f"/check-connection/{llm_api_provider or self.config.llm_api_provider}",
@@ -139,6 +194,7 @@ class RuleProcessor(AlltrueAPIClient):
                 "endpoint_identifier": endpoint_identifier,
                 "headers": json.dumps(dict(headers) if headers else {}),
             },
+            timeout=timeout,
             cache=cache,
         )
         if not HttpStatus.is_success(reply.status_code):
@@ -340,11 +396,16 @@ class RuleProcessor(AlltrueAPIClient):
         endpoint_identifier: str,
         prompt_input: str,
         prompt_output: str | None = None,
+        validation: Literal["connection", "usage", None] = None,
         quick_response: bool = True,
         **kwargs,
-    ):
+    ) -> ProcessResult | None:
         """
-        Shortcut function to process prompt input and output with minimum required parameters
+        Shortcut function to validate and then process prompt input/output with minimum required parameters.
+        Three validation types to choose from:
+         1) connection - validate the connectivity of the endpoint and skip process when invalid
+         2) usage - validate the usage of the endpoint and return forbidden result when unsanctioned
+         3) None - default, no validation before the process of prompt
         """
         headers = kwargs.pop(
             "headers",
@@ -354,6 +415,29 @@ class RuleProcessor(AlltrueAPIClient):
         )
         if not quick_response:
             headers.append(("x-alltrue-llm-cache-control", "no-cache"))
+            kwargs["cache"] = False
+        else:
+            kwargs["cache"] = True
+
+        if validation == "usage":
+            if not await self.check_usage(
+                endpoint_identifier=endpoint_identifier,
+                headers=headers,
+                **kwargs,
+            ):
+                return ProcessResult(
+                    content="",
+                    status_code=HttpStatus.FORBIDDEN,
+                    message="Unsanctioned endpoint",
+                )
+        elif validation == "connection":
+            if not await self.check_connection(
+                endpoint_identifier=endpoint_identifier,
+                headers=headers,
+                **kwargs,
+            ):
+                return None
+
         if prompt_output is None:
             return await self.process_request(
                 request_id=request_id,

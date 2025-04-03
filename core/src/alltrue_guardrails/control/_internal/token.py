@@ -62,7 +62,6 @@ class TokenRetriever:
         """
         This function is used to get the internal access token
         :param refresh: force to retrieve a fresh access token and then recache it, if successful
-        :return: internal access token or dummy string `__placeholder__` if unable to retrieve it
         """
         response = await self._client.post(
             url=_TOKEN_ENDPOINT,
