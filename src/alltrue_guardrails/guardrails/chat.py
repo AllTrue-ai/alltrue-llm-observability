@@ -154,15 +154,6 @@ class ChatGuardian(ABC):
         req_id = self._id_cache.pop(hash_key, str(uuid.uuid4()))
         return req_id, prompts  # type: ignore
 
-    async def validate(self) -> bool:
-        """
-        Self validate whether the current configurations are valid
-        """
-        return await self._guard_processor.check_connection(
-            endpoint_identifier=self._endpoint_identifier,
-            cache=True,
-        )
-
     async def guard_input(
         self,
         prompt_messages: GuardableItems,
@@ -189,6 +180,7 @@ class ChatGuardian(ABC):
             request_id=req_id,
             endpoint_identifier=self._endpoint_identifier,
             prompt_input=self._prompt_hooks.before(prompt),
+            validation="usage",
             quick_response=quick_response,
         )
         if processed is not None:
@@ -242,6 +234,7 @@ class ChatGuardian(ABC):
             endpoint_identifier=self._endpoint_identifier,
             prompt_input=self._prompt_hooks.before(prompt),
             prompt_output=self._completion_hooks.before(completion),
+            validation="usage",
             quick_response=quick_response,
         )
         if processed_result is not None:
@@ -389,6 +382,7 @@ class ChatGuardrails(ChatGuardian):
                 request_id=req_id,
                 endpoint_identifier=self._endpoint_identifier,
                 prompt_input=self._prompt_hooks.before(prompt),
+                validation="connection",
                 quick_response=False,
             )
         )
@@ -425,6 +419,7 @@ class ChatGuardrails(ChatGuardian):
                 endpoint_identifier=self._endpoint_identifier,
                 prompt_input=self._prompt_hooks.before(prompt),
                 prompt_output=self._completion_hooks.before(completion),
+                validation="connection",
                 quick_response=False,
             )
         )

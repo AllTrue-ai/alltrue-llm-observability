@@ -88,8 +88,8 @@ def openai_api_key():
 @pytest.mark.parametrize(
     "openai_client",
     [
-        AsyncOpenAI,
         OpenAI,
+        AsyncOpenAI,
     ],
     indirect=True,
 )
@@ -121,3 +121,4 @@ async def test_openai(
             test_endpoint_identifier not in completion.choices[0].message.content
         ) != blocking
         await asyncio.sleep(0.05 * i)
+    await asyncio.sleep(2)
